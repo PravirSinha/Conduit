@@ -1,0 +1,86 @@
+# ============================================================
+# CONDUIT — Requirements
+# Intelligence That Moves
+# ============================================================
+# Install: pip install -r requirements.txt
+# Python version: 3.11.x (strictly — avoid 3.12)
+# ============================================================
+
+
+# ── CORE AGENT FRAMEWORK ─────────────────────────────────────
+langchain==0.3.7
+langchain-core==0.3.19
+langchain-openai==0.2.9
+langchain-pinecone==0.2.0
+langchain-community==0.3.7
+langgraph==0.2.53
+langgraph-checkpoint==2.0.7
+langgraph-checkpoint-postgres==2.0.6
+
+
+# ── LLM ──────────────────────────────────────────────────────
+openai==1.55.3
+
+
+# ── VECTOR DATABASE ──────────────────────────────────────────
+pinecone-client==5.0.1
+
+
+# ── API BACKEND ──────────────────────────────────────────────
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.17
+pydantic==2.10.1
+pydantic-settings==2.6.1
+httpx==0.28.0
+
+
+# ── DATABASE ─────────────────────────────────────────────────
+sqlalchemy==2.0.35
+psycopg2-binary==2.9.10
+alembic==1.14.0
+
+
+# ── FRONTEND ─────────────────────────────────────────────────
+streamlit==1.40.2
+plotly==5.24.1
+pandas==2.2.3
+
+
+# ── AWS ──────────────────────────────────────────────────────
+boto3==1.35.74
+botocore==1.35.74
+
+
+# ── EVALS ────────────────────────────────────────────────────
+deepeval==1.4.3
+
+
+# ── MONITORING ───────────────────────────────────────────────
+# LangSmith is included via langchain-core
+# No separate install needed
+# Just set env vars:
+# LANGCHAIN_TRACING_V2=true
+# LANGCHAIN_API_KEY=your_key
+# LANGCHAIN_PROJECT=conduit-portfolio
+
+
+# ── SYNTHETIC DATA GENERATION ────────────────────────────────
+faker==33.1.0
+numpy==1.26.4
+
+
+# ── UTILITIES ────────────────────────────────────────────────
+python-dotenv==1.0.1
+tenacity==8.4.2
+tiktoken==0.8.0
+
+
+# ── TESTING ──────────────────────────────────────────────────
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-json-report==1.5.0
+
+
+# ── CODE QUALITY ─────────────────────────────────────────────
+ruff==0.8.2
