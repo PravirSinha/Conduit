@@ -702,6 +702,7 @@ def _build_agent_summary(agent_name: str, state: dict) -> dict:
     return {}
 
 
+def resume_pipeline(
     ro_id:      str,
     approved:   bool,
     advisor_id: str,

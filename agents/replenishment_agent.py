@@ -255,7 +255,7 @@ def run_replenishment_agent(state: dict) -> dict:
                     "status":            "RAISED",
                 })
 
-            except Exception as e:
+            except Exception:
                 # PO creation failed — log but don't crash pipeline
                 pos_raised.append({
                     "po_id":         "FAILED",
@@ -307,7 +307,7 @@ def run_replenishment_agent(state: dict) -> dict:
             "error":           None,
         }
 
-    except Exception as e:
+    except Exception:
         latency_ms = int((time.time() - start_time) * 1000)
 
         log_agent_error(
@@ -343,7 +343,7 @@ if __name__ == "__main__":
         print("No low stock parts found — using test parts directly")
         low_part_numbers = ["BRK-PAD-HON-F-01"]
 
-    print(f"\nRunning Replenishment Agent test...")
+    print("\nRunning Replenishment Agent test...")
     print(f"Parts flagged for reorder: {low_part_numbers}\n")
 
     test_state = {
@@ -358,7 +358,7 @@ if __name__ == "__main__":
         print(f"ERROR: {result['error']}")
     else:
         print(f"Reorder Summary: {result['reorder_summary']}")
-        print(f"\nPOs Raised:")
+        print("\nPOs Raised:")
 
         for po in result.get("pos_raised", []):
             if po["status"] == "RAISED":
@@ -369,7 +369,7 @@ if __name__ == "__main__":
                 print(f"  Lead Time:    {po['lead_time_days']} days")
                 print(f"  Integration:  {po['integration_type']}")
                 print(f"  On-Time Rate: {po['on_time_rate']*100:.0f}%")
-                print(f"  Parts Detail:")
+                print("  Parts Detail:")
                 for p in po.get("parts", []):
                     print(
                         f"    {p['part_number']:<25} "
