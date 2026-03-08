@@ -25,6 +25,10 @@ reports/
 .coverage
 htmlcov/
 
+# Eval reports — generated, not committed
+evals/reports/latest/
+!evals/reports/.gitkeep
+
 # Logs
 logs/
 *.log

@@ -1,58 +1,48 @@
-# docker-compose.yml
-version: '3.8'
-
 services:
-
-  postgres:
+  db:
     image: postgres:15
-    container_name: conduit_postgres
+    container_name: conduit-db
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: conduit
-      POSTGRES_USER: conduit_user
-      POSTGRES_PASSWORD: conduit_pass
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-conduit_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-conduit_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-conduit}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U conduit_user -d conduit"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-conduit_user} -d ${POSTGRES_DB:-conduit}"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
 
-  api:
-    build: .
-    container_name: conduit_api
-    ports:
-      - "8000:8000"
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: conduit:latest
+    container_name: conduit-app
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql://conduit_user:conduit_pass@postgres:5432/conduit
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - PINECONE_API_KEY=${PINECONE_API_KEY}
-      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME}
-      - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2}
-      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
-      - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://conduit_user:conduit_pass@db:5432/conduit}
     depends_on:
-      postgres:
+      db:
         condition: service_healthy
     volumes:
-      - .:/app
-    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
-
-  dashboard:
-    build: .
-    container_name: conduit_dashboard
+      - app_state:/var/lib/conduit
     ports:
+      - "8000:8000"
       - "8501:8501"
-    environment:
-      - API_URL=http://api:8000
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-    depends_on:
-      - api
-    volumes:
-      - .:/app
-    command: streamlit run dashboard/app.py --server.port 8501
+    command: ["/bin/sh", "/app/scripts/startup.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
 
 volumes:
   postgres_data:
+  app_state:

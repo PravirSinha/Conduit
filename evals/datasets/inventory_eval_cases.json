@@ -1,1 +1,67 @@
-[]
+[
+  {
+    "case_id": "INV-001",
+    "description": "Honda City brake pads — exact match",
+    "vehicle": { "make": "Honda", "model": "City", "year": 2022, "fuel_type": "Petrol" },
+    "part": {
+      "part_number": "BRK-PAD-HON-F-01",
+      "compatible_makes": ["Honda"],
+      "compatible_models": ["City", "Amaze"],
+      "compatible_years": [2019, 2020, 2021, 2022, 2023],
+      "compatible_fuel_types": ["Petrol", "Diesel"]
+    },
+    "expected": { "compatible": true }
+  },
+  {
+    "case_id": "INV-002",
+    "description": "Honda part on Tata vehicle — must reject",
+    "vehicle": { "make": "Tata", "model": "Nexon", "year": 2022, "fuel_type": "Petrol" },
+    "part": {
+      "part_number": "BRK-PAD-HON-F-01",
+      "compatible_makes": ["Honda"],
+      "compatible_models": ["City", "Amaze"],
+      "compatible_years": [2019, 2020, 2021, 2022, 2023],
+      "compatible_fuel_types": ["Petrol", "Diesel"]
+    },
+    "expected": { "compatible": false, "reason_contains": "Tata" }
+  },
+  {
+    "case_id": "INV-003",
+    "description": "EV battery on petrol vehicle — must reject",
+    "vehicle": { "make": "Tata", "model": "Nexon EV", "year": 2023, "fuel_type": "Petrol" },
+    "part": {
+      "part_number": "EV-BAT-TTA-NXN-01",
+      "compatible_makes": ["Tata"],
+      "compatible_models": ["Nexon EV"],
+      "compatible_years": [2022, 2023, 2024],
+      "compatible_fuel_types": ["Electric"]
+    },
+    "expected": { "compatible": false, "reason_contains": "Petrol" }
+  },
+  {
+    "case_id": "INV-004",
+    "description": "Universal part — compatible with any vehicle",
+    "vehicle": { "make": "Toyota", "model": "Innova", "year": 2019, "fuel_type": "Diesel" },
+    "part": {
+      "part_number": "FLT-OIL-UNI-01",
+      "compatible_makes": [],
+      "compatible_models": ["All"],
+      "compatible_years": [],
+      "compatible_fuel_types": []
+    },
+    "expected": { "compatible": true }
+  },
+  {
+    "case_id": "INV-005",
+    "description": "Part out of year range — 2018 vehicle, part starts 2019",
+    "vehicle": { "make": "Honda", "model": "City", "year": 2018, "fuel_type": "Petrol" },
+    "part": {
+      "part_number": "BRK-PAD-HON-F-01",
+      "compatible_makes": ["Honda"],
+      "compatible_models": ["City"],
+      "compatible_years": [2019, 2020, 2021, 2022, 2023],
+      "compatible_fuel_types": ["Petrol"]
+    },
+    "expected": { "compatible": false, "reason_contains": "2018" }
+  }
+]

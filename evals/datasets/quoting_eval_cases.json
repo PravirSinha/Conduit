@@ -1,1 +1,77 @@
-[]
+[
+  {
+    "case_id": "QT-001",
+    "description": "Standard brake job — no discount",
+    "reserved_parts": [
+      { "part_number": "BRK-PAD-HON-F-01", "description": "Front brake pads", "qty_reserved": 1, "unit_cost": 3200.0, "sell_price": 4500.0, "subcategory": "Brake Pads" },
+      { "part_number": "BRK-ROT-HON-F-01", "description": "Front brake rotor", "qty_reserved": 1, "unit_cost": 4800.0, "sell_price": 6500.0, "subcategory": "Brake Rotors" }
+    ],
+    "customer": null,
+    "recall": false,
+    "expected": {
+      "subtotal": 11000.0,
+      "discount_rate": 0.0,
+      "gst_rate": 0.18,
+      "gst_amount": 1980.0,
+      "total_amount": 12980.0,
+      "requires_approval": false
+    }
+  },
+  {
+    "case_id": "QT-002",
+    "description": "Gold loyalty customer — 10% discount",
+    "reserved_parts": [
+      { "part_number": "BRK-PAD-HON-F-01", "description": "Front brake pads", "qty_reserved": 1, "unit_cost": 3200.0, "sell_price": 4500.0, "subcategory": "Brake Pads" }
+    ],
+    "customer": { "loyalty_tier": 3, "loyalty_tier_name": "Gold", "discount_rate": 0.10 },
+    "recall": false,
+    "expected": {
+      "discount_rate": 0.10,
+      "discount_amount": 450.0,
+      "post_discount": 4050.0,
+      "gst_amount": 729.0,
+      "total_amount": 4779.0,
+      "requires_approval": false
+    }
+  },
+  {
+    "case_id": "QT-003",
+    "description": "Recall job — 100% covered, zero cost to customer",
+    "reserved_parts": [
+      { "part_number": "BRK-PAD-HON-F-01", "description": "Front brake pads", "qty_reserved": 1, "unit_cost": 3200.0, "sell_price": 4500.0, "subcategory": "Brake Pads" }
+    ],
+    "customer": null,
+    "recall": true,
+    "expected": {
+      "discount_rate": 1.0,
+      "requires_approval": false
+    }
+  },
+  {
+    "case_id": "QT-004",
+    "description": "High value job — above 50k threshold, needs approval",
+    "reserved_parts": [
+      { "part_number": "SHK-ABS-HON-F-01", "description": "Shock absorber", "qty_reserved": 2, "unit_cost": 9000.0, "sell_price": 12000.0, "subcategory": "Shock Absorbers" },
+      { "part_number": "BRK-PAD-HON-F-01", "description": "Brake pads", "qty_reserved": 1, "unit_cost": 3200.0, "sell_price": 4500.0, "subcategory": "Brake Pads" }
+    ],
+    "customer": null,
+    "recall": false,
+    "expected": {
+      "subtotal": 28500.0,
+      "requires_approval": false
+    }
+  },
+  {
+    "case_id": "QT-005",
+    "description": "EV battery — always requires approval",
+    "reserved_parts": [
+      { "part_number": "EV-BAT-TTA-NXN-01", "description": "EV battery module", "qty_reserved": 1, "unit_cost": 140000.0, "sell_price": 185000.0, "subcategory": "EV Battery" }
+    ],
+    "customer": null,
+    "recall": false,
+    "is_ev_job": true,
+    "expected": {
+      "requires_approval": true
+    }
+  }
+]

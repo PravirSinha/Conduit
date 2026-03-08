@@ -1,1 +1,72 @@
-[]
+[
+  {
+    "case_id": "INT-001",
+    "description": "Clear brake complaint — high confidence expected",
+    "complaint": "Grinding noise from front wheels when braking, car pulls to the left, brake pedal feels soft",
+    "vehicle": { "make": "Honda", "model": "City", "year": 2022, "fuel_type": "Petrol", "is_ev": false, "engine_code": "L15Z1", "odometer_km": 45000, "warranty_expired": false },
+    "expected": { "fault_classification": "BRAKE_SYSTEM", "urgency": "HIGH", "confidence_min": 0.80, "parts_prefix": ["BRK"], "recall_action_required": false, "ev_safety_protocol": false }
+  },
+  {
+    "case_id": "INT-002",
+    "description": "Routine oil service",
+    "complaint": "Car due for 10,000 km service, needs oil change and oil filter replacement",
+    "vehicle": { "make": "Honda", "model": "City", "year": 2022, "fuel_type": "Petrol", "is_ev": false, "engine_code": "L15Z1", "odometer_km": 10000, "warranty_expired": false },
+    "expected": { "fault_classification": "ROUTINE_SERVICE", "urgency": "LOW", "confidence_min": 0.85, "parts_prefix": ["FLT"], "recall_action_required": false, "ev_safety_protocol": false }
+  },
+  {
+    "case_id": "INT-003",
+    "description": "EV battery degradation — safety critical",
+    "complaint": "Battery range dropped from 300km to 180km over 3 months, charging takes much longer, range warning light on",
+    "vehicle": { "make": "Tata", "model": "Nexon EV", "year": 2023, "fuel_type": "Electric", "is_ev": true, "engine_code": "EV", "odometer_km": 28000, "warranty_expired": false },
+    "expected": { "fault_classification": "EV_SYSTEM", "urgency": "HIGH", "confidence_min": 0.75, "parts_prefix": ["EV", "BAT"], "recall_action_required": false, "ev_safety_protocol": true }
+  },
+  {
+    "case_id": "INT-004",
+    "description": "Suspension — bouncing and loose steering",
+    "complaint": "Car bounces excessively on speed bumps, steering feels loose and vague, pulling to one side on highway",
+    "vehicle": { "make": "Honda", "model": "City", "year": 2022, "fuel_type": "Petrol", "is_ev": false, "engine_code": "L15Z1", "odometer_km": 62000, "warranty_expired": true },
+    "expected": { "fault_classification": "SUSPENSION", "urgency": "MEDIUM", "confidence_min": 0.75, "parts_prefix": ["SHK", "SUS"], "recall_action_required": false, "ev_safety_protocol": false }
+  },
+  {
+    "case_id": "INT-005",
+    "description": "Engine overheating — high urgency",
+    "complaint": "Temperature gauge going into red, white smoke from hood, coolant warning light on",
+    "vehicle": { "make": "Honda", "model": "City", "year": 2022, "fuel_type": "Petrol", "is_ev": false, "engine_code": "L15Z1", "odometer_km": 78000, "warranty_expired": true },
+    "expected": { "fault_classification": "ENGINE", "urgency": "HIGH", "confidence_min": 0.80, "parts_prefix": [], "recall_action_required": false, "ev_safety_protocol": false }
+  },
+  {
+    "case_id": "INT-006",
+    "description": "Electrical fault — battery and lights",
+    "complaint": "Car not starting in mornings, battery warning light on, headlights flickering while driving",
+    "vehicle": { "make": "Honda", "model": "City", "year": 2022, "fuel_type": "Petrol", "is_ev": false, "engine_code": "L15Z1", "odometer_km": 54000, "warranty_expired": true },
+    "expected": { "fault_classification": "ELECTRICAL_SYSTEM", "urgency": "HIGH", "confidence_min": 0.75, "parts_prefix": ["BAT"], "recall_action_required": false, "ev_safety_protocol": false }
+  },
+  {
+    "case_id": "INT-007",
+    "description": "Vague complaint — must route to UNKNOWN",
+    "complaint": "Car making noise",
+    "vehicle": { "make": "Honda", "model": "City", "year": 2022, "fuel_type": "Petrol", "is_ev": false, "engine_code": "L15Z1", "odometer_km": 33000, "warranty_expired": false },
+    "expected": { "fault_classification": "UNKNOWN", "urgency": "NEEDS_CLARIFICATION", "confidence_max": 0.55, "parts_prefix": [], "recall_action_required": false, "ev_safety_protocol": false }
+  },
+  {
+    "case_id": "INT-008",
+    "description": "Multi-fault — brake takes priority",
+    "complaint": "ABS warning light on, brakes making grinding sound, battery light also on",
+    "vehicle": { "make": "Honda", "model": "City", "year": 2022, "fuel_type": "Petrol", "is_ev": false, "engine_code": "L15Z1", "odometer_km": 48000, "warranty_expired": false },
+    "expected": { "fault_classification": "BRAKE_SYSTEM", "urgency": "HIGH", "confidence_min": 0.70, "parts_prefix": ["BRK"], "recall_action_required": false, "ev_safety_protocol": false }
+  },
+  {
+    "case_id": "INT-009",
+    "description": "Spark plug — misfire and rough idle",
+    "complaint": "Engine misfiring at low speeds, rough idle when stopped at lights, poor fuel economy",
+    "vehicle": { "make": "Honda", "model": "City", "year": 2022, "fuel_type": "Petrol", "is_ev": false, "engine_code": "L15Z1", "odometer_km": 40000, "warranty_expired": false },
+    "expected": { "fault_classification": "ROUTINE_SERVICE", "urgency": "MEDIUM", "confidence_min": 0.70, "parts_prefix": ["SPK"], "recall_action_required": false, "ev_safety_protocol": false }
+  },
+  {
+    "case_id": "INT-010",
+    "description": "EV vague warning — must not be LOW urgency",
+    "complaint": "EV dashboard showing a warning light, not sure what it means",
+    "vehicle": { "make": "Tata", "model": "Nexon EV", "year": 2023, "fuel_type": "Electric", "is_ev": true, "engine_code": "EV", "odometer_km": 15000, "warranty_expired": false },
+    "expected": { "fault_classification": "EV_SYSTEM", "urgency_not": "LOW", "confidence_min": 0.50, "parts_prefix": [], "recall_action_required": false, "ev_safety_protocol": true }
+  }
+]

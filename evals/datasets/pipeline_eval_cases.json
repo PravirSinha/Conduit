@@ -1,1 +1,52 @@
-[]
+[
+  {
+    "case_id": "PIPE-001",
+    "description": "Standard brake job — should complete end to end",
+    "vin": "I0Y6DPBHSAHXTHV3A",
+    "complaint": "Grinding noise from front brakes when stopping, pedal soft",
+    "customer_id": null,
+    "expect_error": false,
+    "expect_hitl": false,
+    "expected_fault": "BRAKE_SYSTEM"
+  },
+  {
+    "case_id": "PIPE-002",
+    "description": "Routine oil service — low cost, auto approved",
+    "vin": "I0Y6DPBHSAHXTHV3A",
+    "complaint": "10,000 km service due — oil change and filter replacement needed",
+    "customer_id": null,
+    "expect_error": false,
+    "expect_hitl": false,
+    "expected_fault": "ROUTINE_SERVICE"
+  },
+  {
+    "case_id": "PIPE-003",
+    "description": "EV battery job — triggers HITL when enabled",
+    "vin": "EVTATA2023NXN00001",
+    "complaint": "EV range degraded significantly, battery warning light on dashboard",
+    "customer_id": null,
+    "expect_error": false,
+    "expect_hitl": true,
+    "expected_fault": "EV_SYSTEM"
+  },
+  {
+    "case_id": "PIPE-004",
+    "description": "Vague complaint — should flag for HITL review",
+    "vin": "I0Y6DPBHSAHXTHV3A",
+    "complaint": "Something seems off with the car lately",
+    "customer_id": null,
+    "expect_error": false,
+    "expect_hitl": true,
+    "expected_fault": "UNKNOWN"
+  },
+  {
+    "case_id": "PIPE-005",
+    "description": "Suspension job — medium cost, auto approve",
+    "vin": "I0Y6DPBHSAHXTHV3A",
+    "complaint": "Car bouncing badly on bumps, shock absorbers seem worn out",
+    "customer_id": null,
+    "expect_error": false,
+    "expect_hitl": false,
+    "expected_fault": "SUSPENSION"
+  }
+]
