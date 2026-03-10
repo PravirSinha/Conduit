@@ -480,5 +480,5 @@ Built by **Pravir Sinha**
 ---
 
 <div align="center">
-<sub>Built with LangGraph, FastAPI, and Streamlit math</sub>
+<sub>Powered by GPT-4o, Pinecone, and an unreasonable number of guardrails</sub>
 </div>
