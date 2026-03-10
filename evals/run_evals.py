@@ -19,8 +19,6 @@ Cost summary:
     ─────────────────────
     Total:          ~$1.05
 """
-import sys
-sys.stdout.reconfigure(encoding='utf-8')
 
 import os, sys, time, json, argparse, subprocess
 from datetime import datetime
@@ -71,7 +69,14 @@ def run_module(rel_path: str, label: str, cost: str) -> dict:
 
 
 def save_summary(results: list, total_elapsed: float):
-    """Saves a JSON summary to reports/latest/summary.json."""
+    """
+    Saves JSON summary to two locations:
+      1. evals/reports/latest/summary.json  — gitignored, always fresh
+      2. docs/eval_results.json             — git tracked, read by Streamlit dashboard
+
+    Both are written on every run so the dashboard always reflects
+    the latest results without any manual cp step.
+    """
     os.makedirs(REPORTS_DIR, exist_ok=True)
 
     summary = {
@@ -84,11 +89,28 @@ def save_summary(results: list, total_elapsed: float):
         "modules":       results,
     }
 
+    # ── Write 1: gitignored reports folder ────────────────────────────────
     summary_path = os.path.join(REPORTS_DIR, "summary.json")
     with open(summary_path, "w") as f:
         json.dump(summary, f, indent=2)
 
     print(f"\nReport saved → evals/reports/latest/summary.json")
+
+    # ── Write 2: docs/eval_results.json (git tracked) ─────────────────────
+    # This is what the Streamlit dashboard reads on AWS.
+    # Auto-copied here so you never need to run cp manually.
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    docs_dir     = os.path.join(project_root, "docs")
+    docs_path    = os.path.join(docs_dir, "eval_results.json")
+
+    try:
+        os.makedirs(docs_dir, exist_ok=True)
+        with open(docs_path, "w") as f:
+            json.dump(summary, f, indent=2)
+        print(f"Snapshot saved  → docs/eval_results.json  (commit this to update dashboard)")
+    except Exception as e:
+        print(f"Warning: could not write docs/eval_results.json — {e}")
+
     return summary
 
 
