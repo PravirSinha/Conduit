@@ -93,6 +93,9 @@ jobs:
           envs: ECR_REGISTRY,IMAGE_TAG,AWS_REGION,ECR_REPOSITORY
           script: |
             set -e
+            # Aggressively free disk before pulling new image
+            docker system prune -af --volumes || true
+
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
             docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
             docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REPOSITORY:latest
@@ -100,4 +103,6 @@ jobs:
             cd ~/conduit
             docker-compose down
             docker-compose up -d --force-recreate
-            docker image prune -f
+
+            # Clean up again after old containers are stopped
+            docker system prune -af || true
