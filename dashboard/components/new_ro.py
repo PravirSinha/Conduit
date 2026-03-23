@@ -205,6 +205,11 @@ def render_new_ro():
                         elapsed = event.get("elapsed_agent", 0),
                     )
 
+                elif etype == "agent_error" and agent in agent_placeholders:
+                    render_agent_step(agent_placeholders[agent], agent, "error")
+                    status_ph.error(f"✗ {agent}: {event.get('error', 'Unknown error')}")
+                    return
+
                 elif etype == "hitl_required":
                     status_ph.markdown(f"""
                     <div class="alert alert-warning">

@@ -577,37 +577,40 @@ def run_pipeline_streaming(
         }
 
         # Run the agent — hard 60 s wall-clock timeout so a slow
-        # OpenAI / Pinecone call can never hang the pipeline forever
+        # OpenAI / Pinecone call can never hang the pipeline forever.
+        #
+        # IMPORTANT: do NOT use `with ThreadPoolExecutor` here.
+        # Its __exit__ calls shutdown(wait=True), which blocks until the
+        # submitted thread finishes — completely defeating the timeout.
+        # We call shutdown(wait=False) explicitly to abandon stuck threads.
         import concurrent.futures as _cf
+        _ex = _cf.ThreadPoolExecutor(max_workers=1)
         try:
-            with _cf.ThreadPoolExecutor(max_workers=1) as _ex:
-                if agent_name == "intake_agent":
-                    fut   = _ex.submit(agent_fn, state)
-                    state = fut.result(timeout=60)
+            fut   = _ex.submit(agent_fn, state)
+            state = fut.result(timeout=60)
 
-                    # Check if we need to pause for intake HITL
-                    confidence     = state.get("intake_confidence", 1.0)
-                    required_parts = state.get("required_parts", [])
-                    fault          = state.get("fault_classification", "UNKNOWN")
+            if agent_name == "intake_agent":
+                # Check if we need to pause for intake HITL
+                confidence     = state.get("intake_confidence", 1.0)
+                required_parts = state.get("required_parts", [])
+                fault          = state.get("fault_classification", "UNKNOWN")
 
-                    if HITL_ENABLED and (
-                        confidence < 0.70 or
-                        not required_parts or
-                        fault == "UNKNOWN"
-                    ):
-                        yield {
-                            "event":   "hitl_required",
-                            "agent":   "intake_hitl",
-                            "message": f"Low confidence ({confidence:.0%}) — supervisor review required",
-                            "elapsed": round(time.time() - pipeline_start, 1),
-                        }
-                        return  # Stop streaming — HITL takes over
-
-                else:
-                    fut   = _ex.submit(agent_fn, state)
-                    state = fut.result(timeout=60)
+                if HITL_ENABLED and (
+                    confidence < 0.70 or
+                    not required_parts or
+                    fault == "UNKNOWN"
+                ):
+                    _ex.shutdown(wait=False)
+                    yield {
+                        "event":   "hitl_required",
+                        "agent":   "intake_hitl",
+                        "message": f"Low confidence ({confidence:.0%}) — supervisor review required",
+                        "elapsed": round(time.time() - pipeline_start, 1),
+                    }
+                    return  # Stop streaming — HITL takes over
 
         except _cf.TimeoutError:
+            _ex.shutdown(wait=False)  # abandon the stuck thread — do NOT wait=True
             yield {
                 "event":   "agent_error",
                 "agent":   agent_name,
@@ -616,6 +619,7 @@ def run_pipeline_streaming(
             }
             return
         except Exception as e:
+            _ex.shutdown(wait=False)
             yield {
                 "event":   "agent_error",
                 "agent":   agent_name,
@@ -623,6 +627,8 @@ def run_pipeline_streaming(
                 "elapsed": round(time.time() - pipeline_start, 1),
             }
             return
+        else:
+            _ex.shutdown(wait=False)
 
         agent_elapsed = round(time.time() - agent_start, 1)
 
