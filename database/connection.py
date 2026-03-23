@@ -68,6 +68,9 @@ def _get_engine():
         max_overflow=10,
         pool_pre_ping=True,
         pool_recycle=3600,
+        # Hard 10 s connection timeout — without this, a bad DATABASE_URL
+        # causes every DB call to hang indefinitely with no error
+        connect_args={"connect_timeout": 10},
         echo=os.getenv("ENVIRONMENT") == "development" and
              os.getenv("LOG_LEVEL") == "DEBUG",
     )
