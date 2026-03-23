@@ -18,14 +18,24 @@ def get_pinecone_index():
     """
     from pinecone import Pinecone
 
-    pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
-    index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
+    pc = Pinecone(
+        api_key=os.getenv("PINECONE_API_KEY"),
+        pool_threads=1,
+    )
+    index = pc.Index(
+        os.getenv("PINECONE_INDEX_NAME"),
+        pool_threads=1,
+    )
     return index
 
 
 def get_openai_client():
     from openai import OpenAI
-    return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    import httpx
+    return OpenAI(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        timeout=httpx.Timeout(30.0, connect=10.0),
+    )
 
 
 def embed_text(text: str) -> List[float]:

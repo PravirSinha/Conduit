@@ -576,33 +576,45 @@ def run_pipeline_streaming(
             "elapsed":     round(time.time() - pipeline_start, 1),
         }
 
-        # Run the agent
+        # Run the agent — hard 60 s wall-clock timeout so a slow
+        # OpenAI / Pinecone call can never hang the pipeline forever
+        import concurrent.futures as _cf
         try:
-            # Check if intake HITL should trigger
-            if agent_name == "intake_agent":
-                state = agent_fn(state)
+            with _cf.ThreadPoolExecutor(max_workers=1) as _ex:
+                if agent_name == "intake_agent":
+                    fut   = _ex.submit(agent_fn, state)
+                    state = fut.result(timeout=60)
 
-                # Check if we need to pause for intake HITL
-                confidence     = state.get("intake_confidence", 1.0)
-                required_parts = state.get("required_parts", [])
-                fault          = state.get("fault_classification", "UNKNOWN")
+                    # Check if we need to pause for intake HITL
+                    confidence     = state.get("intake_confidence", 1.0)
+                    required_parts = state.get("required_parts", [])
+                    fault          = state.get("fault_classification", "UNKNOWN")
 
-                if HITL_ENABLED and (
-                    confidence < 0.70 or
-                    not required_parts or
-                    fault == "UNKNOWN"
-                ):
-                    yield {
-                        "event":   "hitl_required",
-                        "agent":   "intake_hitl",
-                        "message": f"Low confidence ({confidence:.0%}) — supervisor review required",
-                        "elapsed": round(time.time() - pipeline_start, 1),
-                    }
-                    return  # Stop streaming — HITL takes over
+                    if HITL_ENABLED and (
+                        confidence < 0.70 or
+                        not required_parts or
+                        fault == "UNKNOWN"
+                    ):
+                        yield {
+                            "event":   "hitl_required",
+                            "agent":   "intake_hitl",
+                            "message": f"Low confidence ({confidence:.0%}) — supervisor review required",
+                            "elapsed": round(time.time() - pipeline_start, 1),
+                        }
+                        return  # Stop streaming — HITL takes over
 
-            else:
-                state = agent_fn(state)
+                else:
+                    fut   = _ex.submit(agent_fn, state)
+                    state = fut.result(timeout=60)
 
+        except _cf.TimeoutError:
+            yield {
+                "event":   "agent_error",
+                "agent":   agent_name,
+                "error":   f"{agent_name} timed out after 60 s — OpenAI or Pinecone may be slow. Please retry.",
+                "elapsed": round(time.time() - pipeline_start, 1),
+            }
+            return
         except Exception as e:
             yield {
                 "event":   "agent_error",

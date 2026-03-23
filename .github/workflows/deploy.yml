@@ -73,7 +73,7 @@ jobs:
             DATABASE_URL=${{ secrets.DATABASE_URL }}
 
             # ── LangSmith ─────────────────────────────────────
-            LANGCHAIN_TRACING_V2=true
+            LANGCHAIN_TRACING_V2=false
             LANGCHAIN_API_KEY=${{ secrets.LANGCHAIN_API_KEY }}
             LANGCHAIN_PROJECT=conduit-portfolio
             ENVEOF
