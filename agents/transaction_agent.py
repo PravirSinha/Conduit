@@ -415,7 +415,7 @@ def run_transaction_agent(state: dict) -> dict:
             "error":              None,
         }
 
-    except Exception:
+    except Exception as e:
         latency_ms = int((time.time() - start_time) * 1000)
 
         log_agent_error(

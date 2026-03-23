@@ -255,7 +255,7 @@ def run_replenishment_agent(state: dict) -> dict:
                     "status":            "RAISED",
                 })
 
-            except Exception:
+            except Exception as e:
                 # PO creation failed — log but don't crash pipeline
                 pos_raised.append({
                     "po_id":         "FAILED",
@@ -307,7 +307,7 @@ def run_replenishment_agent(state: dict) -> dict:
             "error":           None,
         }
 
-    except Exception:
+    except Exception as e:
         latency_ms = int((time.time() - start_time) * 1000)
 
         log_agent_error(
