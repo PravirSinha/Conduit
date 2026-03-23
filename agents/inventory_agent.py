@@ -165,7 +165,7 @@ def run_inventory_agent(state: dict) -> dict:
         ro_id=ro_id,
         input_summary={
             "required_parts": state.get("required_parts", []),
-            "vehicle":        state.get("vehicle_details", {}).get("make"),
+            "vehicle":        (state.get("vehicle_details") or {}).get("make"),
         }
     )
 

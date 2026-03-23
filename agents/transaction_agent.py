@@ -70,7 +70,7 @@ def should_pause_for_human(state: dict) -> bool:
         return True
 
     # High value quotes
-    quote_total = state.get("quote", {}).get("total_amount", 0)
+    quote_total = (state.get("quote") or {}).get("total_amount", 0)
     if quote_total > AUTO_APPROVE_THRESHOLD:
         return True
 
@@ -90,7 +90,7 @@ def get_auto_approval_reason(state: dict) -> str:
     if not HITL_ENABLED:
         return "HITL disabled — auto-approved for portfolio deployment"
 
-    quote_total = state.get("quote", {}).get("total_amount", 0)
+    quote_total = (state.get("quote") or {}).get("total_amount", 0)
     return (
         "Within auto-approve threshold "
         f"(₹{quote_total:,.0f} < ₹{AUTO_APPROVE_THRESHOLD:,.0f})"
@@ -279,7 +279,7 @@ def validate_transaction_output(state: dict) -> tuple:
         return False, "No reserved parts for non-routine job"
 
     # Quote must exist with valid total
-    quote_total = state.get("quote", {}).get("total_amount", 0)
+    quote_total = (state.get("quote") or {}).get("total_amount", 0)
     if quote_total <= 0:
         return False, f"Invalid quote total: {quote_total}"
 
@@ -308,7 +308,7 @@ def run_transaction_agent(state: dict) -> dict:
         agent_name="transaction_agent",
         ro_id=ro_id,
         input_summary={
-            "quote_total":  state.get("quote", {}).get("total_amount"),
+            "quote_total":  (state.get("quote") or {}).get("total_amount"),
             "hitl_enabled": HITL_ENABLED,
             "is_ev_job":    state.get("is_ev_job"),
         }

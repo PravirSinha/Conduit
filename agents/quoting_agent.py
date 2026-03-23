@@ -207,7 +207,7 @@ def run_quoting_agent(state: dict) -> dict:
         ro_id=ro_id,
         input_summary={
             "reserved_parts": len(state.get("reserved_parts", [])),
-            "customer_tier":  state.get("customer_details", {}).get(
+            "customer_tier":  (state.get("customer_details") or {}).get(
                                   "loyalty_tier_name", "Walk-in"
                               ),
             "fault":          state.get("fault_classification"),
