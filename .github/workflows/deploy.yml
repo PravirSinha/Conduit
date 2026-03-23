@@ -57,6 +57,7 @@ jobs:
             LOG_LEVEL=INFO
             HITL_ENABLED=false
             AUTO_APPROVE_THRESHOLD=50000
+            API_URL=http://localhost:8000
 
             # ── OpenAI ────────────────────────────────────────
             OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
@@ -67,12 +68,14 @@ jobs:
             PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}
 
             # ── Database ──────────────────────────────────────
+            # Must be full RDS URL with sslmode=require
+            # e.g. postgresql://user:pass@host:5432/conduit?sslmode=require
             DATABASE_URL=${{ secrets.DATABASE_URL }}
 
             # ── LangSmith ─────────────────────────────────────
             LANGCHAIN_TRACING_V2=true
             LANGCHAIN_API_KEY=${{ secrets.LANGCHAIN_API_KEY }}
-            LANGSMITH_PROJECT=conduit-portfolio
+            LANGCHAIN_PROJECT=conduit-portfolio
             ENVEOF
 
             echo ".env written successfully"

@@ -39,38 +39,70 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-if not DATABASE_URL:
-    raise ValueError(
-        "DATABASE_URL not set in environment. "
-        "Check your .env file.\n"
-        "Expected format: "
-        "postgresql://conduit_user:conduit_pass@localhost:5432/conduit"
+# ── LAZY ENGINE ───────────────────────────────────────────────────────────────
+# Engine is created on FIRST USE, not at import time.
+# A missing or wrong DATABASE_URL won't crash FastAPI on startup —
+# it only fails when a request actually touches the database.
+
+_engine        = None
+_SessionLocal  = None
+
+
+def _get_engine():
+    global _engine, _SessionLocal
+    if _engine is not None:
+        return _engine
+
+    url = os.getenv("DATABASE_URL") or DATABASE_URL
+    if not url:
+        raise ValueError(
+            "DATABASE_URL not set. "
+            "Check the DATABASE_URL GitHub Actions secret and EC2 .env file.\n"
+            "Expected: postgresql://user:pass@host:5432/conduit?sslmode=require"
+        )
+
+    _engine = create_engine(
+        url,
+        poolclass=QueuePool,
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=True,
+        pool_recycle=3600,
+        echo=os.getenv("ENVIRONMENT") == "development" and
+             os.getenv("LOG_LEVEL") == "DEBUG",
     )
+    _SessionLocal = sessionmaker(
+        bind=_engine,
+        autocommit=False,
+        autoflush=False,
+        expire_on_commit=False,
+    )
+    return _engine
 
-engine = create_engine(
-    DATABASE_URL,
-
-    # Connection pool settings
-    # For portfolio scale — small pool is fine
-    poolclass=QueuePool,
-    pool_size=5,           # max 5 persistent connections
-    max_overflow=10,       # up to 10 additional connections under load
-    pool_pre_ping=True,    # test connection before using (handles restarts)
-    pool_recycle=3600,     # recycle connections every hour
-
-    # Logging — set to True to see all SQL in terminal during development
-    echo=os.getenv("ENVIRONMENT") == "development" and
-         os.getenv("LOG_LEVEL") == "DEBUG",
-)
 
 # ── SESSION FACTORY ───────────────────────────────────────────────────────────
 
-SessionLocal = sessionmaker(
-    bind=engine,
-    autocommit=False,   # always explicit commit — never auto
-    autoflush=False,    # never auto-flush — explicit control
-    expire_on_commit=False,  # keep objects accessible after commit
-)
+class _LazySessionLocal:
+    """Proxy that creates the session factory on first use."""
+    def __call__(self, *a, **kw):
+        _get_engine()
+        return _SessionLocal(*a, **kw)
+
+SessionLocal = _LazySessionLocal()
+
+
+class _LazyEngine:
+    """Proxy that creates the engine on first use."""
+    def __getattr__(self, name):
+        return getattr(_get_engine(), name)
+    def connect(self, *a, **kw):
+        return _get_engine().connect(*a, **kw)
+    def begin(self, *a, **kw):
+        return _get_engine().begin(*a, **kw)
+    def dispose(self, *a, **kw):
+        return _get_engine().dispose(*a, **kw)
+
+engine = _LazyEngine()
 
 
 # ── SESSION PROVIDERS ─────────────────────────────────────────────────────────
