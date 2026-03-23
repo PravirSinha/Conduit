@@ -168,6 +168,7 @@ Rules:
         response_format={"type": "json_object"},
         temperature=0.1,   # low temperature = more deterministic classification
         max_tokens=500,
+        timeout=30,        # fail fast rather than hang forever
     )
 
     raw_response = response.choices[0].message.content

@@ -94,7 +94,7 @@ def health_check():
             "database":    "connected",
             "tables":      counts,
         }
-    except Exception:
+    except Exception as e:
         return {
             "status":   "unhealthy",
             "database": "disconnected",
@@ -125,8 +125,11 @@ async def startup():
         })
 
     except Exception as e:
+        # Log startup errors but do NOT raise — crashing here kills uvicorn
+        # and causes a supervisord restart loop.  Individual requests will
+        # surface DB errors when they actually attempt DB operations.
         logger.error({
             "event":   "startup_failed",
             "error":   str(e),
+            "message": "Continuing despite startup error — check DATABASE_URL",
         })
-        raise

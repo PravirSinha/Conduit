@@ -37,7 +37,8 @@ def embed_text(text: str) -> List[float]:
     client = get_openai_client()
     response = client.embeddings.create(
         model="text-embedding-3-small",
-        input=text
+        input=text,
+        timeout=15,   # fail fast if OpenAI is slow
     )
     return response.data[0].embedding
 

@@ -6,6 +6,8 @@ Core endpoints for creating and managing repair orders.
 
 import json
 import uuid
+import queue
+import threading
 from fastapi.responses import StreamingResponse
 
 from typing import List, Optional
@@ -216,23 +218,44 @@ def create_repair_order_stream(
     db.commit()
 
     # Stream pipeline events
+    # The pipeline runs in a background thread so the generator can
+    # emit SSE keepalive comments every 10 s while agents are processing.
+    # Without this, the connection silently dies if any agent takes >30 s.
     def event_stream():
-        # First event — RO created
         yield f"data: {json.dumps({'event': 'ro_created', 'ro_id': ro_id})}\n\n"
 
-        try:
-            from orchestrator import run_pipeline_streaming
+        event_q: queue.Queue = queue.Queue()
+        DONE = object()  # sentinel
 
-            for event in run_pipeline_streaming(
-                ro_id          = ro_id,
-                vin            = vehicle.vin,
-                complaint_text = request.complaint_text,
-                customer_id    = request.customer_id,
-            ):
-                yield f"data: {json.dumps(event, default=str)}\n\n"
+        def _run():
+            try:
+                from orchestrator import run_pipeline_streaming
+                for ev in run_pipeline_streaming(
+                    ro_id          = ro_id,
+                    vin            = vehicle.vin,
+                    complaint_text = request.complaint_text,
+                    customer_id    = request.customer_id,
+                ):
+                    event_q.put(ev)
+            except Exception as exc:
+                event_q.put({"event": "error", "message": str(exc)})
+            finally:
+                event_q.put(DONE)
 
-        except Exception as e:
-            yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+
+        while True:
+            try:
+                item = event_q.get(timeout=10)
+                if item is DONE:
+                    break
+                yield f"data: {json.dumps(item, default=str)}\n\n"
+            except queue.Empty:
+                # Send a keepalive comment so nginx / the client don't time out
+                yield ": keepalive\n\n"
+
+        t.join(timeout=5)
 
     return StreamingResponse(
         event_stream(),

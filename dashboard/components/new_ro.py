@@ -1,10 +1,11 @@
 """CONDUIT — New Repair Order Page with Real SSE Streaming"""
 import json
+import os
 import time
 import requests
 import streamlit as st
 
-API_BASE = "http://localhost:8000/api"
+API_BASE = os.environ.get("API_URL", "http://localhost:8000") + "/api"
 
 AGENT_META = {
     "intake_agent":        {"icon": "🧠", "label": "Intake Agent",       "desc": "Semantic search + GPT-4o fault classification"},
@@ -165,7 +166,7 @@ def render_new_ro():
                 "customer_id":    customer_id.strip() or None,
             },
             stream  = True,
-            timeout = 120,
+            timeout = 300,
         ) as resp:
 
             resp.raise_for_status()
