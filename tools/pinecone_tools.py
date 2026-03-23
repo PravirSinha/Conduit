@@ -36,6 +36,17 @@ def get_pinecone_index():
         api_key=api_key,
         pool_threads=1,
     )
+
+    # Validate index exists before trying to connect
+    # A wrong index name causes index.query() to hang indefinitely
+    available = [i.name for i in pc.list_indexes()]
+    if index_name not in available:
+        raise ValueError(
+            f"Pinecone index '{index_name}' not found. "
+            f"Available indexes: {available}. "
+            f"Update the PINECONE_INDEX_NAME GitHub secret."
+        )
+
     index = pc.Index(
         index_name,
         pool_threads=1,
@@ -114,7 +125,7 @@ def search_parts_catalog(
     if pinecone_filter:
         query_kwargs["filter"] = pinecone_filter
 
-    results = index.query(**query_kwargs)
+    results = index.query(**query_kwargs, timeout=20)
 
     # Format results into clean dicts
     parts = []
