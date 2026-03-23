@@ -16,7 +16,7 @@ AGENT_META = {
 }
 
 
-def render_agent_step(container, agent_name, status, summary=None, elapsed=None):
+def render_agent_step(container, agent_name, status, summary=None, elapsed=None, error_msg=None):
     meta   = AGENT_META.get(agent_name, {})
     icon   = meta.get("icon", "⚙")
     label  = meta.get("label", agent_name)
@@ -74,6 +74,12 @@ def render_agent_step(container, agent_name, status, summary=None, elapsed=None)
             po_str = f"{pos} PO(s) raised · ₹{val:,.0f}" if pos else "No reorder needed"
             summary_html = f'<div style="color:#64748b;font-size:0.7rem;margin-top:3px;">{po_str}</div>'
 
+    error_html = ""
+    if error_msg and status == "error":
+        # Truncate very long messages to avoid UI overflow
+        short = error_msg[:200] + "..." if len(error_msg) > 200 else error_msg
+        error_html = f'<div style="color:#ef4444;font-size:0.68rem;margin-top:4px;word-break:break-word;">{short}</div>'
+
     container.markdown(f"""
     <div style="background:{color};border:1px solid {border};border-left:3px solid {border};
                 border-radius:3px;padding:10px 14px;margin-bottom:5px;
@@ -86,6 +92,7 @@ def render_agent_step(container, agent_name, status, summary=None, elapsed=None)
         </div>
         <div style="color:#334155;font-size:0.68rem;margin-top:2px;">{desc}</div>
         {summary_html}
+        {error_html}
     </div>
     """, unsafe_allow_html=True)
 
@@ -206,8 +213,9 @@ def render_new_ro():
                     )
 
                 elif etype == "agent_error" and agent in agent_placeholders:
-                    render_agent_step(agent_placeholders[agent], agent, "error")
-                    status_ph.error(f"✗ {agent}: {event.get('error', 'Unknown error')}")
+                    err = event.get("error", "Unknown error")
+                    render_agent_step(agent_placeholders[agent], agent, "error", error_msg=err)
+                    status_ph.error(f"✗ {err}")
                     return
 
                 elif etype == "hitl_required":
