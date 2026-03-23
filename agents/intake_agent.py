@@ -323,6 +323,7 @@ def run_intake_agent(state: dict) -> dict:
         if not vin:
             raise ValueError("VIN is required but was not provided")
 
+        print(f"[INTAKE] STEP 1 — decode_vin({vin})", flush=True)
         vehicle = decode_vin(vin)
 
         if not vehicle:
@@ -330,18 +331,23 @@ def run_intake_agent(state: dict) -> dict:
                 f"VIN {vin} not found in vehicle catalog. "
                 "Vehicle may not be registered in the system."
             )
+        print(f"[INTAKE] STEP 1 done — {vehicle['make']} {vehicle['model']}", flush=True)
 
         # ── STEP 2: LOOK UP CUSTOMER ───────────────────────────────────────
+        print("[INTAKE] STEP 2 — get_customer_by_vin", flush=True)
         customer = get_customer_by_vin(vin)
         # Customer is optional — walk-in customers won't be in DB
+        print(f"[INTAKE] STEP 2 done — customer={'found' if customer else 'not found'}", flush=True)
 
         # ── STEP 3: CHECK RECALLS ──────────────────────────────────────────
+        print("[INTAKE] STEP 3 — check_recall", flush=True)
         recall_flags = check_recall(
             vin=vin,
             make=vehicle["make"],
             model=vehicle["model"],
             year=vehicle["year"],
         )
+        print(f"[INTAKE] STEP 3 done — {len(recall_flags)} recall(s)", flush=True)
 
         # ── STEP 4: SEMANTIC SEARCH ON PINECONE ───────────────────────────
         complaint_text = state.get("complaint_text", "")
@@ -349,6 +355,7 @@ def run_intake_agent(state: dict) -> dict:
         if not complaint_text:
             raise ValueError("Complaint text is required but was not provided")
 
+        print("[INTAKE] STEP 4 — search_parts_catalog (Pinecone)", flush=True)
         # Search with vehicle make filter for more accurate results
         retrieved_parts = search_parts_catalog(
             complaint_text=complaint_text,
@@ -366,14 +373,17 @@ def run_intake_agent(state: dict) -> dict:
                 complaint_text=complaint_text,
                 top_k=5,
             )
+        print(f"[INTAKE] STEP 4 done — {len(retrieved_parts)} part(s) retrieved", flush=True)
 
         # ── STEP 5: LLM CLASSIFICATION ────────────────────────────────────
+        print("[INTAKE] STEP 5 — classify_fault_with_llm (OpenAI)", flush=True)
         classification = classify_fault_with_llm(
             complaint_text=complaint_text,
             vehicle=vehicle,
             retrieved_parts=retrieved_parts,
             recall_flags=recall_flags,
         )
+        print(f"[INTAKE] STEP 5 done — fault={classification.get('fault_classification')}", flush=True)
 
         # ── STEP 6: GUARDRAIL VALIDATION ──────────────────────────────────
         is_valid, reason = validate_intake_output(classification, ro_id)
