@@ -57,23 +57,28 @@ def get_customer_by_vin(vin: str) -> Optional[Dict]:
     from database.models import Customer
 
     with get_session() as db:
-        # Customer.vehicle_vins is a JSON array
-        # We use a JSON contains query
-        customers = db.query(Customer).all()
+        from sqlalchemy import cast, String
+        # Use PostgreSQL JSON contains operator to avoid full table scan
+        vin_upper = vin.upper()
+        customer = (
+            db.query(Customer)
+            .filter(
+                cast(Customer.vehicle_vins, String).contains(vin_upper)
+            )
+            .first()
+        )
 
-        for customer in customers:
-            vins = customer.vehicle_vins or []
-            if vin.upper() in [v.upper() for v in vins]:
-                return {
-                    "customer_id":       customer.customer_id,
-                    "full_name":         customer.full_name,
-                    "phone":             customer.phone,
-                    "loyalty_tier":      customer.loyalty_tier,
-                    "loyalty_tier_name": customer.loyalty_tier_name,
-                    "discount_rate":     customer.discount_rate,
-                    "total_visits":      customer.total_visits,
-                    "preferred_contact": customer.preferred_contact,
-                }
+        if customer:
+            return {
+                "customer_id":       customer.customer_id,
+                "full_name":         customer.full_name,
+                "phone":             customer.phone,
+                "loyalty_tier":      customer.loyalty_tier,
+                "loyalty_tier_name": customer.loyalty_tier_name,
+                "discount_rate":     customer.discount_rate,
+                "total_visits":      customer.total_visits,
+                "preferred_contact": customer.preferred_contact,
+            }
 
         return None
 

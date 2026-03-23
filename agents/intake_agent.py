@@ -120,7 +120,7 @@ Urgency levels:
 - NEEDS_CLARIFICATION (complaint too vague)"""
 
     # User prompt — the actual classification request
-    user_prompt = """Classify this vehicle complaint and identify required parts.
+    user_prompt = f"""Classify this vehicle complaint and identify required parts.
 
 VEHICLE:
 - Make/Model: {vehicle['make']} {vehicle['model']} {vehicle['year']}

@@ -162,7 +162,7 @@ def create_repair_order(
 
         return build_ro_response(state, db)
 
-    except Exception:
+    except Exception as e:
         logger.error({
             "event": "pipeline_error",
             "ro_id": ro_id,
