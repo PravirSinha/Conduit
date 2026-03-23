@@ -186,8 +186,8 @@ def save_quote_to_db(
 
         return quote_id
 
-    except Exception:
-        raise Exception(f"Failed to save quote: {e}")
+    except Exception as e:
+        raise Exception(f"Failed to save quote: {e}") from e
 
 
 # ── MAIN AGENT FUNCTION ───────────────────────────────────────────────────────
@@ -287,13 +287,16 @@ def run_quoting_agent(state: dict) -> dict:
         )
 
         # ── STEP 7: GUARDRAIL VALIDATION ──────────────────────────────────
+        print("[QUOTING] STEP 7 — guardrail validation", flush=True)
         is_valid, reason = validate_quote_output(selected_quote, ro_id)
 
         if not is_valid:
             log_guardrail_failure("quoting_agent", ro_id, reason)
             raise ValueError(f"Quote validation failed: {reason}")
+        print("[QUOTING] STEP 7 done", flush=True)
 
-        # ── STEP 8: SAVE TO DATABASE ───────────────────────────────────────
+        # ── STEP 8: SAVE TO DATABASE ───────────────────────────────────────────
+        print("[QUOTING] STEP 8 — save quote to DB", flush=True)
         quote_id = save_quote_to_db(
             ro_id             = ro_id,
             oem_quote         = oem_quote,
@@ -301,6 +304,7 @@ def run_quoting_agent(state: dict) -> dict:
             selected_quote    = selected_quote,
             needs_approval    = needs_approval,
         )
+        print(f"[QUOTING] STEP 8 done — quote_id={quote_id}", flush=True)
 
         # ── STEP 9: BUILD OUTPUT STATE ─────────────────────────────────────
         latency_ms = int((time.time() - start_time) * 1000)

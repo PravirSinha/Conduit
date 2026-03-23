@@ -77,14 +77,13 @@ def render_agent_step(container, agent_name, status, summary=None, elapsed=None,
 
     error_html = ""
     if error_msg and status == "error":
-        # HTML-escape the message so angle brackets in exception strings
-        # (e.g. <ssl.SSLError>, <URLError>) don't break the card HTML
-        safe_msg = _html.escape(error_msg[:200] + ("..." if len(error_msg) > 200 else ""))
-        error_html = f'<div style="color:#ef4444;font-size:0.68rem;margin-top:4px;word-break:break-word;">{safe_msg}</div>'
+        # Use a plain-text approach to avoid Streamlit HTML sanitization
+        # The outer card HTML above handles the styling; we append a native element
+        pass
 
     container.markdown(f"""
     <div style="background:{color};border:1px solid {border};border-left:3px solid {border};
-                border-radius:3px;padding:10px 14px;margin-bottom:5px;
+                border-radius:3px;padding:10px 14px;margin-bottom:0px;
                 font-family:'IBM Plex Mono',monospace;transition:all 0.2s;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
             <span style="color:{text_color};font-size:0.82rem;font-weight:500;">
@@ -94,9 +93,13 @@ def render_agent_step(container, agent_name, status, summary=None, elapsed=None,
         </div>
         <div style="color:#334155;font-size:0.68rem;margin-top:2px;">{desc}</div>
         {summary_html}
-        {error_html}
     </div>
     """, unsafe_allow_html=True)
+
+    # Render error message as native Streamlit element to avoid HTML injection issues
+    if error_msg and status == "error":
+        short = error_msg[:200] + ("..." if len(error_msg) > 200 else "")
+        container.error(short, icon="🚫")
 
 
 def render_new_ro():
