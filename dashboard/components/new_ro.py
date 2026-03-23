@@ -1,4 +1,5 @@
 """CONDUIT — New Repair Order Page with Real SSE Streaming"""
+import html as _html
 import json
 import os
 import time
@@ -76,9 +77,10 @@ def render_agent_step(container, agent_name, status, summary=None, elapsed=None,
 
     error_html = ""
     if error_msg and status == "error":
-        # Truncate very long messages to avoid UI overflow
-        short = error_msg[:200] + "..." if len(error_msg) > 200 else error_msg
-        error_html = f'<div style="color:#ef4444;font-size:0.68rem;margin-top:4px;word-break:break-word;">{short}</div>'
+        # HTML-escape the message so angle brackets in exception strings
+        # (e.g. <ssl.SSLError>, <URLError>) don't break the card HTML
+        safe_msg = _html.escape(error_msg[:200] + ("..." if len(error_msg) > 200 else ""))
+        error_html = f'<div style="color:#ef4444;font-size:0.68rem;margin-top:4px;word-break:break-word;">{safe_msg}</div>'
 
     container.markdown(f"""
     <div style="background:{color};border:1px solid {border};border-left:3px solid {border};

@@ -16,14 +16,28 @@ def get_pinecone_index():
     Returns a connected Pinecone index instance.
     Called once per agent invocation.
     """
+    api_key    = os.getenv("PINECONE_API_KEY")
+    index_name = os.getenv("PINECONE_INDEX_NAME")
+
+    if not api_key:
+        raise ValueError(
+            "PINECONE_API_KEY is not set. "
+            "Add it to the GitHub Actions secrets and redeploy."
+        )
+    if not index_name:
+        raise ValueError(
+            "PINECONE_INDEX_NAME is not set. "
+            "Add it to the GitHub Actions secrets and redeploy."
+        )
+
     from pinecone import Pinecone
 
     pc = Pinecone(
-        api_key=os.getenv("PINECONE_API_KEY"),
+        api_key=api_key,
         pool_threads=1,
     )
     index = pc.Index(
-        os.getenv("PINECONE_INDEX_NAME"),
+        index_name,
         pool_threads=1,
     )
     return index
