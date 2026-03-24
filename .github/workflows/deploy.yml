@@ -55,7 +55,13 @@ jobs:
             # ── App ───────────────────────────────────────────
             ENVIRONMENT=production
             LOG_LEVEL=INFO
+            # Legacy aggregate toggle (kept for backward compatibility)
             HITL_ENABLED=${{ secrets.HITL_ENABLED || 'false' }}
+
+            # Split HITL toggles
+            INTAKE_HITL_ENABLED=${{ secrets.INTAKE_HITL_ENABLED || secrets.HITL_ENABLED || 'false' }}
+            TRANSACTION_HITL_ENABLED=${{ secrets.TRANSACTION_HITL_ENABLED || secrets.HITL_ENABLED || 'false' }}
+
             ADVISOR_PIN=${{ secrets.ADVISOR_PIN || '1234' }}
             AUTO_APPROVE_THRESHOLD=50000
             API_URL=http://localhost:8000

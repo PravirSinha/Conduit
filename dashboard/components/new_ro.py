@@ -6,7 +6,7 @@ import time
 import requests
 import streamlit as st
 
-from config import HITL_ENABLED
+from config import INTAKE_HITL_ENABLED, TRANSACTION_HITL_ENABLED
 from dashboard.api_client import submit_intake_review
 
 API_BASE = os.environ.get("API_URL", "http://localhost:8000") + "/api"
@@ -132,8 +132,10 @@ def render_agent_step(container, agent_name, status, summary=None, elapsed=None,
 
 def render_new_ro():
 
-    hitl_label = "ON" if HITL_ENABLED else "OFF"
-    hitl_color = "#22c55e" if HITL_ENABLED else "#64748b"
+    intake_hitl_label = "ON" if INTAKE_HITL_ENABLED else "OFF"
+    intake_hitl_color = "#22c55e" if INTAKE_HITL_ENABLED else "#64748b"
+    approval_hitl_label = "ON" if TRANSACTION_HITL_ENABLED else "OFF"
+    approval_hitl_color = "#22c55e" if TRANSACTION_HITL_ENABLED else "#64748b"
 
     st.markdown(f"""
     <div style="margin-bottom:2rem;">
@@ -146,7 +148,8 @@ def render_new_ro():
             New Repair Order
         </h1>
         <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;color:#64748b;margin-top:0.25rem;">
-            HITL: <span style="color:{hitl_color};font-weight:600;">{hitl_label}</span>
+            HITL: Intake <span style="color:{intake_hitl_color};font-weight:600;">{intake_hitl_label}</span>
+            &nbsp;|&nbsp; Approval <span style="color:{approval_hitl_color};font-weight:600;">{approval_hitl_label}</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -305,7 +308,7 @@ def render_new_ro():
 
     # ── INTAKE HITL (SUPERVISOR INPUT) ──────────────────────────────────
     if hitl_event:
-        if not HITL_ENABLED:
+        if not INTAKE_HITL_ENABLED:
             # Demo mode: show notification and stop (no supervisor workflow)
             return
 

@@ -66,7 +66,7 @@ from agents.quoting_agent      import run_quoting_agent
 from agents.transaction_agent  import run_transaction_agent
 from agents.replenishment_agent import run_replenishment_agent
 
-from config import HITL_ENABLED, DATABASE_URL
+from config import HITL_ENABLED, INTAKE_HITL_ENABLED, DATABASE_URL
 
 
 # ── SHARED STATE DEFINITION ───────────────────────────────────────────────────
@@ -255,7 +255,7 @@ def route_after_intake(state: CONDUITState) -> str:
     if state.get("error"):
         return "end"
 
-    if not HITL_ENABLED:
+    if not INTAKE_HITL_ENABLED:
         return "inventory"
 
     confidence    = state.get("intake_confidence", 1.0)
@@ -587,7 +587,7 @@ def run_pipeline_streaming(
                 required_parts = state.get("required_parts", [])
                 fault          = state.get("fault_classification", "UNKNOWN")
 
-                if HITL_ENABLED and (
+                if INTAKE_HITL_ENABLED and (
                     confidence < 0.70 or
                     not required_parts or
                     fault == "UNKNOWN"

@@ -43,7 +43,15 @@ from app_logging.agent_logger import (
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 
-HITL_ENABLED           = os.getenv("HITL_ENABLED", "false").lower() == "true"
+_legacy_hitl_enabled = os.getenv("HITL_ENABLED", "false").lower() == "true"
+TRANSACTION_HITL_ENABLED = os.getenv(
+    "TRANSACTION_HITL_ENABLED",
+    str(_legacy_hitl_enabled),
+).lower() == "true"
+
+# Backward-compatible alias (some tests/patching referenced this name)
+HITL_ENABLED = TRANSACTION_HITL_ENABLED
+
 AUTO_APPROVE_THRESHOLD = float(os.getenv("AUTO_APPROVE_THRESHOLD", "50000"))
 
 
@@ -62,7 +70,7 @@ def should_pause_for_human(state: dict) -> bool:
     - Low confidence classifications
     - Active recall jobs
     """
-    if not HITL_ENABLED:
+    if not TRANSACTION_HITL_ENABLED:
         return False
 
     # EV jobs always need approval
@@ -87,7 +95,7 @@ def should_pause_for_human(state: dict) -> bool:
 
 def get_auto_approval_reason(state: dict) -> str:
     """Returns reason string for auto-approval decision."""
-    if not HITL_ENABLED:
+    if not TRANSACTION_HITL_ENABLED:
         return "HITL disabled — auto-approved for portfolio deployment"
 
     quote_total = (state.get("quote") or {}).get("total_amount", 0)

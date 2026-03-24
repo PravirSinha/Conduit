@@ -27,7 +27,16 @@ LANGCHAIN_API_KEY  = os.getenv("LANGCHAIN_API_KEY")
 LANGCHAIN_PROJECT  = os.getenv("LANGCHAIN_PROJECT", "conduit-portfolio")
 
 # ── HITL ──────────────────────────────────────────────────────────────────────
-HITL_ENABLED           = os.getenv("HITL_ENABLED", "false").lower() == "true"
+_legacy_hitl_enabled   = os.getenv("HITL_ENABLED", "false").lower() == "true"
+
+# Split flags (preferred):
+# - INTAKE_HITL_ENABLED controls the Intake ambiguity pause + supervisor override
+# - TRANSACTION_HITL_ENABLED controls the quote approval pause (amount cutoffs, EV, recall, etc.)
+INTAKE_HITL_ENABLED      = os.getenv("INTAKE_HITL_ENABLED", str(_legacy_hitl_enabled)).lower() == "true"
+TRANSACTION_HITL_ENABLED = os.getenv("TRANSACTION_HITL_ENABLED", str(_legacy_hitl_enabled)).lower() == "true"
+
+# Backward-compatible aggregate: true if any HITL gate is enabled.
+HITL_ENABLED             = INTAKE_HITL_ENABLED or TRANSACTION_HITL_ENABLED
 AUTO_APPROVE_THRESHOLD = float(os.getenv("AUTO_APPROVE_THRESHOLD", "50000"))
 ADVISOR_PIN            = os.getenv("ADVISOR_PIN", "1234")
 
