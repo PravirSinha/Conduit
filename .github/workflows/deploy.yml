@@ -55,7 +55,8 @@ jobs:
             # ── App ───────────────────────────────────────────
             ENVIRONMENT=production
             LOG_LEVEL=INFO
-            HITL_ENABLED=false
+            HITL_ENABLED=${{ secrets.HITL_ENABLED || 'false' }}
+            ADVISOR_PIN=${{ secrets.ADVISOR_PIN || '1234' }}
             AUTO_APPROVE_THRESHOLD=50000
             API_URL=http://localhost:8000
 
