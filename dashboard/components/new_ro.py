@@ -269,7 +269,7 @@ def render_new_ro():
                 elif etype == "hitl_required":
                     status_ph.markdown(f"""
                     <div class="alert alert-warning">
-                        ⚠ {event.get('message')} — check Pending Approvals
+                        ⚠ {event.get('message')}
                     </div>""", unsafe_allow_html=True)
                     return
 

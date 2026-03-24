@@ -595,19 +595,24 @@ def run_pipeline_streaming(
                 required_parts = state.get("required_parts", [])
                 fault          = state.get("fault_classification", "UNKNOWN")
 
-                if HITL_ENABLED and (
+                if (
                     confidence < 0.70 or
                     not required_parts or
                     fault == "UNKNOWN"
                 ):
                     _ex.shutdown(wait=False)
+                    msg = (
+                        f"Low confidence ({confidence:.0%}) — human inspection recommended"
+                        if not HITL_ENABLED
+                        else f"Low confidence ({confidence:.0%}) — supervisor review required"
+                    )
                     yield {
                         "event":   "hitl_required",
                         "agent":   "intake_hitl",
-                        "message": f"Low confidence ({confidence:.0%}) — supervisor review required",
+                        "message": msg,
                         "elapsed": round(time.time() - pipeline_start, 1),
                     }
-                    return  # Stop streaming — HITL takes over
+                    return  # Stop streaming — ambiguous case should not be auto-quoted
 
         except _cf.TimeoutError:
             _ex.shutdown(wait=False)  # abandon the stuck thread — do NOT wait=True
