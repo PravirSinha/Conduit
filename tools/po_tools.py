@@ -115,8 +115,11 @@ def create_purchase_order(
     from database.models import PurchaseOrder
 
     po_id       = f"PO-{datetime.utcnow().strftime('%Y%m%d')}-{str(uuid.uuid4())[:6].upper()}"
+    # Use demand-adjusted `order_quantity` calculated in Replenishment Agent.
+    # Fall back to catalog `reorder_quantity` only if needed.
     total_value = sum(
-        p["reorder_quantity"] * p["unit_cost"]
+        float(p.get("unit_cost", 0))
+        * int(p.get("order_quantity", p.get("reorder_quantity", 0)))
         for p in parts
     )
 
