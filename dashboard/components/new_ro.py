@@ -281,10 +281,7 @@ def render_new_ro():
 
                 elif etype == "hitl_required":
                     hitl_event = event
-                    status_ph.markdown(f"""
-                    <div class="alert alert-warning">
-                        ⚠ {event.get('message')}
-                    </div>""", unsafe_allow_html=True)
+                    status_ph.warning(event.get("message") or "Human inspection required", icon="🛑")
                     break
 
                 elif etype == "pipeline_complete":

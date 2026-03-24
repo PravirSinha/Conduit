@@ -590,6 +590,8 @@ def run_pipeline_streaming(
     for agent_name, agent_fn, description in agent_sequence:
         agent_start = time.time()
 
+        pending_hitl_required: dict | None = None
+
         # Yield "running" event so dashboard shows spinner for this agent
         yield {
             "event":       "agent_running",
@@ -622,19 +624,17 @@ def run_pipeline_streaming(
                     not required_parts or
                     fault == "UNKNOWN"
                 ):
-                    _ex.shutdown(wait=False)
                     msg = (
                         f"Low confidence ({confidence:.0%}) — human inspection recommended"
                         if not INTAKE_HITL_ENABLED
                         else f"Low confidence ({confidence:.0%}) — supervisor review required"
                     )
-                    yield {
+                    pending_hitl_required = {
                         "event":   "hitl_required",
                         "agent":   "intake_hitl",
                         "message": msg,
                         "elapsed": round(time.time() - pipeline_start, 1),
                     }
-                    return  # Stop streaming — ambiguous case should not be auto-quoted
 
         except _cf.TimeoutError:
             _ex.shutdown(wait=False)  # abandon the stuck thread — do NOT wait=True
@@ -672,6 +672,12 @@ def run_pipeline_streaming(
             "summary":     summary,
             "error":       state.get("error"),
         }
+
+        # If intake was ambiguous, emit HITL/inspection notification AFTER
+        # marking intake complete — avoids UI looking like it stopped abruptly.
+        if pending_hitl_required:
+            yield pending_hitl_required
+            return  # Stop streaming — ambiguous case should not be auto-quoted
 
         # Stop pipeline if error occurred
         if state.get("error"):
