@@ -144,6 +144,7 @@ class CONDUITState(TypedDict, total=False):
     inspection_only:                bool             # True = diagnostic quote only
     supervisor_id:                  Optional[str]    # who made the override decision
     supervisor_notes:               Optional[str]    # any additional notes
+    supervisor_complaint_override:  Optional[str]    # refined complaint / diagnosis for re-triage
 
     # ── META ──────────────────────────────────────────────────────────────
     current_agent:      Optional[str]
@@ -202,6 +203,7 @@ def run_intake_hitl(state: CONDUITState) -> CONDUITState:
                 "supervisor_labor_hours",
                 "inspection_only",
                 "supervisor_notes",
+                "supervisor_complaint_override",
             ],
         })
 
@@ -218,6 +220,13 @@ def run_intake_hitl(state: CONDUITState) -> CONDUITState:
             "supervisor_labor_rate":         decision.get("supervisor_labor_rate"),
             "inspection_only":               decision.get("inspection_only", False),
             "supervisor_notes":              decision.get("supervisor_notes"),
+
+                        # Optional: supervisor can refine complaint/dx and re-run Intake.
+                        "supervisor_complaint_override":  decision.get("supervisor_complaint_override"),
+                        "complaint_text":                 (
+                                                                                                decision.get("supervisor_complaint_override")
+                                                                                                or state.get("complaint_text")
+                                                                                            ),
 
             # Override required_parts with supervisor selection
             # Downstream agents use required_parts normally
@@ -356,8 +365,21 @@ def build_graph(use_memory_checkpointer: bool = True):
         }
     )
 
-    # intake_hitl → inventory (always — supervisor filled in parts)
-    graph.add_edge("intake_hitl", "inventory")
+    # intake_hitl → intake (if supervisor provided refined complaint) OR inventory
+    def route_after_intake_hitl(state: CONDUITState) -> str:
+        override = (state.get("supervisor_complaint_override") or "").strip()
+        if override:
+            return "intake"
+        return "inventory"
+
+    graph.add_conditional_edges(
+        "intake_hitl",
+        route_after_intake_hitl,
+        {
+            "intake":     "intake",
+            "inventory":  "inventory",
+        }
+    )
 
     # inventory → quoting or end (conditional)
     graph.add_conditional_edges(
@@ -793,6 +815,7 @@ def resume_intake_hitl(
     supervisor_labor_rate:      float  = None,
     inspection_only:            bool   = False,
     supervisor_notes:           str    = "",
+    supervisor_complaint_override: str  = None,
 ) -> Dict[str, Any]:
     """
     Resumes an intake-HITL paused pipeline with supervisor input.
@@ -826,6 +849,7 @@ def resume_intake_hitl(
             "supervisor_labor_rate":      supervisor_labor_rate,
             "inspection_only":            inspection_only,
             "supervisor_notes":           supervisor_notes,
+            "supervisor_complaint_override": supervisor_complaint_override,
         },
         config=config,
     )

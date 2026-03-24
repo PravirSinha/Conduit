@@ -448,13 +448,14 @@ def submit_intake_review(
             supervisor_labor_rate       = request.supervisor_labor_rate,
             inspection_only             = request.inspection_only,
             supervisor_notes            = request.supervisor_notes,
+            supervisor_complaint_override = request.supervisor_complaint_override,
         )
 
+        # Return the resumed state so the dashboard can render full results.
         return {
-            "message":   "Intake review submitted — pipeline resumed",
-            "ro_id":     ro_id,
-            "quote_id":  state.get("quote_id"),
-            "total":     state.get("quote", {}).get("total_amount"),
+            "message": "Intake review submitted — pipeline resumed",
+            "ro_id":   ro_id,
+            "state":   state,
         }
 
     except Exception as e:

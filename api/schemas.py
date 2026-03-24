@@ -82,6 +82,15 @@ class IntakeReviewRequest(BaseModel):
     )
     supervisor_notes: Optional[str] = Field(None, description="Additional notes")
 
+    # Optional — supervisor can refine complaint/dx for re-triage
+    supervisor_complaint_override: Optional[str] = Field(
+        None,
+        description=(
+            "Supervisor finding / refined complaint (e.g. 'battery not working'). "
+            "If provided, pipeline re-runs Intake classification using this text."
+        ),
+    )
+
 
 # ── RESPONSE SCHEMAS ──────────────────────────────────────────────────────────
 

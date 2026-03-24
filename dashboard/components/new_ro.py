@@ -6,6 +6,9 @@ import time
 import requests
 import streamlit as st
 
+from config import HITL_ENABLED
+from dashboard.api_client import submit_intake_review
+
 API_BASE = os.environ.get("API_URL", "http://localhost:8000") + "/api"
 
 AGENT_META = {
@@ -211,6 +214,7 @@ def render_new_ro():
 
     final_event = None
     ro_id       = None
+    hitl_event  = None
 
     try:
         with requests.post(
@@ -267,11 +271,12 @@ def render_new_ro():
                     return
 
                 elif etype == "hitl_required":
+                    hitl_event = event
                     status_ph.markdown(f"""
                     <div class="alert alert-warning">
                         ⚠ {event.get('message')}
                     </div>""", unsafe_allow_html=True)
-                    return
+                    break
 
                 elif etype == "pipeline_complete":
                     final_event = event
@@ -291,6 +296,77 @@ def render_new_ro():
     except Exception as e:
         status_ph.error(f"Connection error: {e}")
         return
+
+    # ── INTAKE HITL (SUPERVISOR INPUT) ──────────────────────────────────
+    if hitl_event:
+        if not HITL_ENABLED:
+            # Demo mode: show notification and stop (no supervisor workflow)
+            return
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown('<div class="section-header">Supervisor Review</div>', unsafe_allow_html=True)
+        st.info(
+            "This case is ambiguous. Add a short diagnosis (e.g. 'battery not working') to re-run Intake and continue the pipeline.",
+            icon="🧑‍🔧",
+        )
+
+        with st.form("intake_hitl_form"):
+            supervisor_id = st.text_input("Supervisor ID", value="SUP-001")
+            pin = st.text_input("Supervisor PIN", type="password")
+            refined = st.text_area(
+                "Supervisor finding / diagnosis",
+                placeholder="e.g. battery not working; car not getting started",
+                height=90,
+            )
+            submit_review = st.form_submit_button("Resume Pipeline")
+
+        if not submit_review:
+            return
+
+        if not pin:
+            st.error("Supervisor PIN is required")
+            return
+
+        if not refined.strip():
+            st.error("Please enter a short diagnosis to proceed")
+            return
+
+        if not ro_id:
+            st.error("RO ID missing — cannot submit review")
+            return
+
+        resp = submit_intake_review(ro_id, {
+            "supervisor_id": supervisor_id.strip() or "SUP-001",
+            "pin": pin,
+            "supervisor_complaint_override": refined.strip(),
+            "supervisor_notes": refined.strip(),
+        })
+
+        if not resp:
+            st.error("Failed to submit intake review")
+            return
+
+        resumed_state = resp.get("state") or {}
+        final_event = {
+            "ro_id": ro_id,
+            "fault": resumed_state.get("fault_classification"),
+            "urgency": resumed_state.get("urgency"),
+            "confidence": resumed_state.get("intake_confidence"),
+            "required_parts": resumed_state.get("required_parts", []),
+            "parts_available": resumed_state.get("parts_available"),
+            "quote_id": resumed_state.get("quote_id"),
+            "transaction_status": resumed_state.get("transaction_status"),
+            "approved_by": resumed_state.get("approved_by"),
+            "reorder_summary": resumed_state.get("reorder_summary"),
+            "pos_raised": resumed_state.get("pos_raised", []),
+            "quote": resumed_state.get("quote"),
+            "oem_quote": resumed_state.get("oem_quote"),
+            "aftermarket_quote": resumed_state.get("aftermarket_quote"),
+            "is_ev_job": resumed_state.get("is_ev_job"),
+            "recall_action_required": resumed_state.get("recall_action_required"),
+            "error": resumed_state.get("error"),
+            "total_elapsed": 0,
+        }
 
     if not final_event:
         return
