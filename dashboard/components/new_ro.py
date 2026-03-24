@@ -17,6 +17,31 @@ AGENT_META = {
 }
 
 
+@st.cache_data(ttl=300)
+def _load_demo_vins(limit: int = 3) -> list[str]:
+    """Returns a small set of VINs for demo dropdown.
+
+    Tries to read from the local DB; falls back to a few known demo VINs.
+    """
+    fallback = [
+        "I0Y6DPBHSAHXTHV3A",
+        "JH4TB2H26CC000000",
+        "1HGCM82633A000000",
+    ]
+
+    try:
+        from database.connection import get_session
+        from database.models import Vehicle
+
+        with get_session() as db:
+            vehicles = db.query(Vehicle).limit(limit).all()
+
+        vins = [v.vin for v in vehicles if getattr(v, "vin", None)]
+        return vins or fallback
+    except Exception:
+        return fallback
+
+
 def render_agent_step(container, agent_name, status, summary=None, elapsed=None, error_msg=None):
     meta   = AGENT_META.get(agent_name, {})
     icon   = meta.get("icon", "⚙")
@@ -123,7 +148,25 @@ def render_new_ro():
         st.markdown('<div class="section-header">Vehicle & Complaint</div>',
                     unsafe_allow_html=True)
 
-        vin = st.text_input("Vehicle VIN", placeholder="e.g. I0Y6DPBHSAHXTHV3A")
+        demo_vins = _load_demo_vins(limit=3)
+
+        if "vin_input" not in st.session_state:
+            st.session_state["vin_input"] = ""
+
+        vin_preset = st.selectbox(
+            "Preset VIN (optional)",
+            options=["Custom"] + demo_vins,
+            index=0,
+        )
+
+        if vin_preset != "Custom":
+            st.session_state["vin_input"] = vin_preset
+
+        vin = st.text_input(
+            "Vehicle VIN",
+            key="vin_input",
+            placeholder="e.g. I0Y6DPBHSAHXTHV3A",
+        )
 
         complaint = st.text_area(
             "Customer Complaint",
