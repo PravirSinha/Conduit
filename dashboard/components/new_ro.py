@@ -381,6 +381,27 @@ def render_new_ro():
         st.markdown(f'<div class="alert alert-warning">🚚 {final_event["reorder_summary"]}</div>',
                     unsafe_allow_html=True)
 
+    # PO breakdown (explains why PO value can be much larger than a single quote)
+    pos_raised = final_event.get("pos_raised") or []
+    if pos_raised:
+        rows = []
+        for po in pos_raised:
+            for part in (po.get("parts") or []):
+                rows.append({
+                    "PO":         po.get("po_id"),
+                    "Supplier":   po.get("supplier_name") or po.get("supplier_id"),
+                    "Part":       part.get("part_number"),
+                    "Qty":        part.get("order_quantity"),
+                    "Unit Cost":  part.get("unit_cost"),
+                    "Line Value": part.get("order_value"),
+                })
+
+        if rows:
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown('<div class="section-header">Purchase Order Breakdown</div>', unsafe_allow_html=True)
+            st.caption("PO totals reflect proactive inventory replenishment (wholesale unit cost × bulk order quantity), not the customer quote.")
+            st.dataframe(rows, use_container_width=True, hide_index=True)
+
     # Footer reference
     if ro_id:
         st.markdown(f"""

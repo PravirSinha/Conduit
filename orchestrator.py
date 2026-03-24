@@ -656,6 +656,29 @@ def run_pipeline_streaming(
                 break
 
     # Final event — complete pipeline with full state
+    # Include a minimal PO breakdown for demo UX (explains large PO totals).
+    pos_min = []
+    for po in state.get("pos_raised", []) or []:
+        parts = []
+        for p in (po.get("parts") or []):
+            parts.append({
+                "part_number":    p.get("part_number"),
+                "description":    p.get("description"),
+                "order_quantity": p.get("order_quantity"),
+                "unit_cost":      p.get("unit_cost"),
+                "order_value":    p.get("order_value"),
+            })
+
+        pos_min.append({
+            "po_id":         po.get("po_id"),
+            "supplier_id":   po.get("supplier_id"),
+            "supplier_name": po.get("supplier_name"),
+            "parts_count":   po.get("parts_count"),
+            "total_value":   po.get("total_value"),
+            "status":        po.get("status"),
+            "parts":         parts,
+        })
+
     yield {
         "event":         "pipeline_complete",
         "total_elapsed": round(time.time() - pipeline_start, 1),
@@ -670,6 +693,7 @@ def run_pipeline_streaming(
         "approved_by":       state.get("approved_by"),
         "reorder_summary":   state.get("reorder_summary"),
         "pos_count":         len(state.get("pos_raised", [])),
+        "pos_raised":        pos_min,
         "quote":             state.get("quote"),
         "oem_quote":         state.get("oem_quote"),
         "aftermarket_quote": state.get("aftermarket_quote"),
