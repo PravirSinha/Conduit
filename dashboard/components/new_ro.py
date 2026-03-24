@@ -132,6 +132,9 @@ def render_agent_step(container, agent_name, status, summary=None, elapsed=None,
 
 def render_new_ro():
 
+    hitl_label = "ON" if HITL_ENABLED else "OFF"
+    hitl_color = "#22c55e" if HITL_ENABLED else "#64748b"
+
     st.markdown("""
     <div style="margin-bottom:2rem;">
         <div style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;
@@ -142,6 +145,9 @@ def render_new_ro():
                    font-weight:600;color:#1c1917;margin:0.25rem 0;">
             New Repair Order
         </h1>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;color:#64748b;margin-top:0.25rem;">
+            HITL: <span style="color:{hitl_color};font-weight:600;">{hitl_label}</span>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
