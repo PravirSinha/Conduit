@@ -413,7 +413,8 @@ with st.sidebar:
 
     # API status
     try:
-        r = requests.get("http://localhost:8000/health", timeout=2)
+        _api_url = os.environ.get("API_URL", "http://localhost:8000")
+        r = requests.get(f"{_api_url}/health", timeout=2)
         api_online = r.status_code == 200
     except Exception:
         api_online = False

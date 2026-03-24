@@ -3,10 +3,11 @@ CONDUIT — Dashboard API Client
 All API calls go through here — never call requests directly in components.
 """
 
+import os
 import requests
 from typing import Optional, Dict, List
 
-API_BASE = "http://localhost:8000/api"
+API_BASE = os.environ.get("API_URL", "http://localhost:8000") + "/api"
 
 
 def _get(endpoint: str) -> Optional[Dict]:
