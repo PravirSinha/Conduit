@@ -135,7 +135,7 @@ def render_new_ro():
     hitl_label = "ON" if HITL_ENABLED else "OFF"
     hitl_color = "#22c55e" if HITL_ENABLED else "#64748b"
 
-    st.markdown("""
+    st.markdown(f"""
     <div style="margin-bottom:2rem;">
         <div style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;
                     letter-spacing:0.15em;text-transform:uppercase;color:#64748b;">
