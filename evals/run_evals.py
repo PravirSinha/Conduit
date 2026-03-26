@@ -79,6 +79,46 @@ def save_summary(results: list, total_elapsed: float):
     """
     os.makedirs(REPORTS_DIR, exist_ok=True)
 
+    # Load any per-eval metric summaries (written by EvalResult).
+    metrics = {}
+    metrics_path = os.path.join(REPORTS_DIR, "metrics.json")
+    try:
+        if os.path.exists(metrics_path):
+            with open(metrics_path, "r") as f:
+                metrics = json.load(f) or {}
+    except Exception:
+        metrics = {}
+
+    eval_metrics = (metrics or {}).get("evals", {})
+
+    system_pass_rate = round(
+        (sum(1 for r in results if r["passed"]) / len(results) * 100) if results else 0,
+        0,
+    )
+    intake_accuracy = eval_metrics.get("Fault Classification Accuracy", {}).get("pass_rate")
+    rag_recall_at_5 = eval_metrics.get("RAG Recall@5", {}).get("pass_rate")
+
+    headline_metrics = [
+        {
+            "id": "system_pass_rate",
+            "label": "System Pass Rate",
+            "value": system_pass_rate,
+            "unit": "%",
+        },
+        {
+            "id": "intake_classification_accuracy",
+            "label": "Intake Accuracy",
+            "value": intake_accuracy,
+            "unit": "%",
+        },
+        {
+            "id": "rag_recall_at_5",
+            "label": "RAG Recall@5",
+            "value": rag_recall_at_5,
+            "unit": "%",
+        },
+    ]
+
     summary = {
         "run_at":        datetime.utcnow().isoformat() + "Z",
         "total_elapsed": round(total_elapsed, 1),
@@ -86,6 +126,8 @@ def save_summary(results: list, total_elapsed: float):
         "passed":        sum(1 for r in results if r["passed"]),
         "failed":        sum(1 for r in results if not r["passed"]),
         "total":         len(results),
+        "headline_metrics": headline_metrics,
+        "eval_metrics": eval_metrics,
         "modules":       results,
     }
 
@@ -172,6 +214,15 @@ def main():
     print(f"{'='*65}")
 
     os.makedirs(REPORTS_DIR, exist_ok=True)
+
+    # Make per-eval metric summaries available to the master runner.
+    metrics_path = os.path.join(REPORTS_DIR, "metrics.json")
+    try:
+        if os.path.exists(metrics_path):
+            os.remove(metrics_path)
+    except Exception:
+        pass
+    os.environ["EVALS_METRICS_OUT"] = metrics_path
 
     suite_start = time.time()
     results     = []

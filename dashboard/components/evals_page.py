@@ -10,7 +10,8 @@ Cost model:
     LangSmith          →  automatic, zero marginal cost
 
 To refresh results after a new run:
-    cp evals/reports/latest/summary.json docs/eval_results.json
+    # run_evals.py auto-writes docs/eval_results.json
+    python evals/run_evals.py --free
     git add docs/eval_results.json && git commit -m "docs: update eval snapshot"
 """
 
@@ -36,6 +37,11 @@ DEMO_SUMMARY = {
     "failed": 0,
     "total": 7,
     "total_elapsed": 218.4,
+    "headline_metrics": [
+        {"id": "system_pass_rate", "label": "System Pass Rate", "value": 100, "unit": "%"},
+        {"id": "intake_classification_accuracy", "label": "Intake Accuracy", "value": 90.0, "unit": "%"},
+        {"id": "rag_recall_at_5", "label": "RAG Recall@5", "value": 80.0, "unit": "%"},
+    ],
     "modules": [
         {"label": "Intake Guardrails",      "passed": True,  "cost": "$0.00", "elapsed_s": 38.2},
         {"label": "Quoting Guardrails",     "passed": True,  "cost": "$0.00", "elapsed_s": 22.1},
@@ -69,6 +75,34 @@ def _fmt_date(iso: str) -> str:
         return dt.strftime("%d %b %Y · %H:%M UTC")
     except Exception:
         return iso
+
+
+def _fmt_percent(value) -> str:
+    if value is None:
+        return "N/A"
+    try:
+        return f"{float(value):.0f}%"
+    except Exception:
+        return "N/A"
+
+
+def _get_headline_metrics(summary: dict) -> list[dict]:
+    """Returns exactly 3 headline metrics with safe defaults."""
+    passed = summary.get("passed", 0)
+    total = summary.get("total", 0)
+    default_system_pass_rate = round(passed / total * 100, 0) if total else 0
+
+    metric_map = {m.get("id"): m for m in (summary.get("headline_metrics") or []) if isinstance(m, dict)}
+
+    def _value(metric_id: str, fallback):
+        m = metric_map.get(metric_id) or {}
+        return m.get("value", fallback)
+
+    return [
+        {"label": "System Pass Rate", "value": _value("system_pass_rate", default_system_pass_rate)},
+        {"label": "Intake Accuracy", "value": _value("intake_classification_accuracy", None)},
+        {"label": "RAG Recall@5", "value": _value("rag_recall_at_5", None)},
+    ]
 
 
 def render_evals():
@@ -141,18 +175,15 @@ def render_evals():
         </div>
         """, unsafe_allow_html=True)
 
-    # ── Metrics ───────────────────────────────────────────────────────────────
-    c1, c2, c3, c4 = st.columns(4)
+    # ── Headline metrics (3 only) ─────────────────────────────────────────────
+    m1, m2, m3 = _get_headline_metrics(summary)
+    c1, c2, c3 = st.columns(3)
     with c1:
-        st.metric("Modules Passed", f"{passed}/{total}")
+        st.metric(m1["label"], _fmt_percent(m1["value"]))
     with c2:
-        st.metric("Pass Rate", f"{round(passed/total*100) if total else 0}%")
+        st.metric(m2["label"], _fmt_percent(m2["value"]))
     with c3:
-        st.metric("Runtime", _fmt_time(total_elapsed))
-    with c4:
-        all_free = all(m.get("cost") == "$0.00" for m in modules)
-        st.metric("Cost to Run", "$0.00" if all_free else "~$1.00",
-                  delta="free tier" if all_free else "LLM judge")
+        st.metric(m3["label"], _fmt_percent(m3["value"]))
 
     st.markdown("---")
 
@@ -234,8 +265,8 @@ def render_evals():
 # Run free evals ($0.00)
 python evals/run_evals.py --free
 
+# The runner also writes docs/eval_results.json automatically.
 # Commit snapshot — page auto-updates after push
-cp evals/reports/latest/summary.json docs/eval_results.json
 git add docs/eval_results.json
 git commit -m "docs: update eval results snapshot"
 git push

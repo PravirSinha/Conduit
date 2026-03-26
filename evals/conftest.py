@@ -9,6 +9,7 @@ import os
 import sys
 import json
 import pytest
+from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -37,6 +38,37 @@ class EvalResult:
     def __init__(self, eval_name: str):
         self.eval_name = eval_name
         self.results   = []
+
+    def _write_summary_metric(self, summary: dict) -> None:
+        """Optionally persists summary metrics for the master runner.
+
+        When `EVALS_METRICS_OUT` is set, each EvalResult will upsert its
+        summary into that JSON file under the key `eval_name`.
+        """
+        metrics_path = os.getenv("EVALS_METRICS_OUT")
+        if not metrics_path:
+            return
+
+        try:
+            os.makedirs(os.path.dirname(metrics_path), exist_ok=True)
+
+            existing = {}
+            if os.path.exists(metrics_path):
+                with open(metrics_path, "r") as f:
+                    existing = json.load(f) or {}
+
+            # Metadata can help debug stale snapshots.
+            existing.setdefault("_meta", {})
+            existing["_meta"]["updated_at"] = datetime.utcnow().isoformat() + "Z"
+
+            existing.setdefault("evals", {})
+            existing["evals"][self.eval_name] = summary
+
+            with open(metrics_path, "w") as f:
+                json.dump(existing, f, indent=2)
+        except Exception:
+            # Never fail an eval due to metrics export.
+            return
 
     def record(self, case_id, metric, passed, expected, actual, notes=""):
         self.results.append({
@@ -67,6 +99,8 @@ class EvalResult:
         print(f"{'-'*65}")
         print(f"RESULT: {s['passed']}/{s['total']} ({s['pass_rate']}%)")
         print(f"{'='*65}\n")
+
+        self._write_summary_metric(s)
         return s
 
 
