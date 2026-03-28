@@ -17,7 +17,10 @@ graph TB
     subgraph ORCH["Orchestration — LangGraph StateGraph"]
         direction LR
         S([START]) --> IA
-        IA[Intake Agent<br/>GPT-4o] --> INV
+        IA[Intake Agent<br/>GPT-4o] --> IA_DEC{Intake HITL?}
+        IA_DEC -->|confident + parts| INV
+        IA_DEC -->|ambiguous / UNKNOWN| I_HITL[Intake Supervisor Review]
+        I_HITL --> INV
         INV[Inventory Agent<br/>Pinecone RAG] --> QA
         QA[Quoting Agent<br/>Pricing Engine] --> TA
         TA{Transaction Agent<br/>HITL Logic}
@@ -59,11 +62,14 @@ stateDiagram-v2
 
     IntakeAgent --> InventoryAgent : fault_classification\nurgency\nrequired_parts[]
 
+    IntakeAgent --> IntakeHITL : confidence < 70% OR\nrequired_parts = [] OR\nfault = UNKNOWN
+    IntakeHITL --> InventoryAgent : supervisor override\n(parts/materials/labor)
+
     InventoryAgent --> QuotingAgent : reserved_parts[]\ncompatibility_checked
 
     QuotingAgent --> TransactionAgent : quote\nsubtotal + GST\ndiscount_applied
 
-    TransactionAgent --> HITLPause : is_ev_job OR\ntotal > ₹50k OR\nconfidence < 70%
+    TransactionAgent --> HITLPause : is_ev_job OR\nrecall OR\ntotal > threshold OR\nconfidence < 70%
 
     HITLPause --> ReplenishmentAgent : human_approved = true
 
@@ -153,7 +159,7 @@ erDiagram
 
 ```mermaid
 graph LR
-    subgraph FREE["Free Tier — $0.00 — Every CI Push"]
+    subgraph FREE["Free Tier — $0.00 — Fast deterministic checks"]
         G1[Intake Guardrails<br/>18 tests]
         G2[Quoting Guardrails<br/>13 tests]
         G3[Output Validators<br/>18 tests]
@@ -163,7 +169,7 @@ graph LR
         C4[Replenishment Agent<br/>9 tests]
     end
 
-    subgraph PAID["LLM Tier — ~$1.05 — At Deployment"]
+    subgraph PAID["LLM Tier — ~$1.05 — Before demos/releases"]
         L1[Intake Agent LLM<br/>~$0.20<br/>Classification accuracy]
         L2[RAG Retrieval<br/>~$0.05<br/>Pinecone precision/recall]
         L3[Full Pipeline<br/>~$0.80<br/>End-to-end quality]
@@ -171,12 +177,15 @@ graph LR
 
     subgraph REPORT["Reports"]
         R1[evals/reports/latest/summary.json]
+        R1b[docs/eval_results.json<br/>Dashboard snapshot]
         R2[LangSmith Dashboard]
         R3[DeepEval — Confident AI]
     end
 
     FREE --> R1
+    FREE --> R1b
     PAID --> R1
+    PAID --> R1b
     PAID --> R2
     PAID --> R3
 ```

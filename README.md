@@ -88,11 +88,20 @@ Customer Complaint
 Every agent state transition is streamed to the dashboard via **Server-Sent Events (SSE)** — service advisors see the pipeline progress live, not just the final result.
 
 ### Human-in-the-Loop (HITL)
-The system automatically pauses for human approval on:
-- **EV jobs** — high-voltage safety protocols
-- **High-value quotes** — above ₹50,000 threshold
-- **Low-confidence classifications** — below 70% intake confidence
-- **Active recall jobs** — manufacturer recall flags
+CONDUIT supports **two HITL gates** with independent toggles:
+
+1) **Intake HITL (Supervisor review)** — pauses when the complaint is ambiguous and the system cannot confidently identify parts.
+        - Triggers when: `intake_confidence < 0.70` OR `required_parts=[]` OR `fault_classification == "UNKNOWN"`
+        - Supervisor can override with catalog parts, custom materials, and labor-only/inspection-only entries.
+
+2) **Transaction HITL (Advisor approval)** — pauses before confirming inventory allocation and progressing the RO.
+        - Triggers when: EV jobs, recall jobs, high-value quotes (above threshold), or low-confidence intake
+        - Threshold is configurable via `AUTO_APPROVE_THRESHOLD` (default ₹50,000)
+
+Feature flags:
+- `INTAKE_HITL_ENABLED` (preferred)
+- `TRANSACTION_HITL_ENABLED` (preferred)
+- `HITL_ENABLED` (legacy alias; enables both when set)
 
 ### Financial Accuracy
 - 18% GST calculated on post-discount amount (regulatory compliance)
@@ -204,6 +213,60 @@ CI/CD               GitHub Actions
 Infrastructure      AWS EC2 (t3.medium) + AWS RDS + AWS ECR
 Containerisation    Docker + Docker Compose
 ```
+
+---
+
+## Observability & Evals
+
+CONDUIT uses **two layers** that serve different purposes:
+
+- **LangSmith (live production observability)**
+        - Every pipeline run is traced with latency + cost.
+        - Used for debugging, performance monitoring, and cost governance.
+
+- **Evals (offline quality + guardrails)**
+        - `python evals/run_evals.py` runs the eval suite and writes a **static snapshot** JSON.
+        - The Streamlit **Evals tab reads** `docs/eval_results.json`.
+        - Viewing the Evals tab is always **$0.00** (no LLM calls are triggered).
+
+Refresh workflow for the deployed dashboard snapshot:
+
+```bash
+# $0.00 deterministic smoke suite
+python evals/run_evals.py --free
+
+# Commit the refreshed snapshot so the dashboard updates
+git add docs/eval_results.json
+git commit -m "docs: refresh eval snapshot"
+git push origin main
+```
+
+---
+
+## Demo Queries (HITL vs Non-HITL)
+
+Use these as ready-made `complaint_text` examples for demos/interviews.
+
+### Cases where HITL is typically NOT required (happy path)
+- "Routine service: oil change and oil filter replacement. No warning lights."
+- "Grinding noise from front brakes when braking. Please replace brake pads."
+- "Battery is weak, car slow to crank in the morning. Replace 12V battery." (non-EV)
+- "Front suspension clunk over speed bumps. Inspect and replace shock absorbers if needed."
+- "Regular maintenance: replace air filter and cabin filter."
+
+### Cases where HITL SHOULD be required
+
+**Intake HITL (supervisor review)** — ambiguous / unknown / no parts:
+- "Rear bumper dent and repaint required. Bodywork + paint."
+- "Water leakage inside cabin during rain. Need diagnosis."
+- "Rattle noise sometimes from dashboard area, intermittent. Not sure when it happens."
+
+**Transaction HITL (advisor approval)** — EV / recall / high value:
+- "EV battery warning light on, reduced power mode. Suspect high-voltage battery issue." (EV VIN)
+- "Timing belt replacement + water pump replacement; full service." (often high value)
+- "Customer came in for manufacturer recall repair. Perform recall service." (VIN with recall)
+
+Tip for deterministic demos: set `AUTO_APPROVE_THRESHOLD` low (e.g., `10000`) to force advisor approval on most quotes.
 
 ---
 
