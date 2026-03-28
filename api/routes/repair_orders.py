@@ -5,6 +5,7 @@ Core endpoints for creating and managing repair orders.
 """
 
 import json
+import os
 import uuid
 import queue
 import threading
@@ -29,6 +30,13 @@ from app_logging.logger import get_logger
 
 logger = get_logger("conduit.api")
 router = APIRouter(prefix="/repair-orders", tags=["Repair Orders"])
+
+
+def _langsmith_enabled() -> bool:
+    return (
+        os.getenv("LANGCHAIN_TRACING_V2", "false").lower() == "true" or
+        os.getenv("LANGSMITH_TRACING", "false").lower() == "true"
+    )
 
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -155,12 +163,44 @@ def create_repair_order(
     try:
         from orchestrator import run_pipeline
 
-        state = run_pipeline(
-            ro_id          = ro_id,
-            vin            = vehicle.vin,
-            complaint_text = request.complaint_text,
-            customer_id    = request.customer_id,
-        )
+        # Optional LangSmith tracing (root run per query).
+        try:
+            from langsmith import traceable
+
+            @traceable(
+                name="conduit.pipeline",
+                run_type="chain",
+                project_name=None,
+                metadata={
+                    "ro_id": ro_id,
+                    "thread_id": ro_id,
+                    "vin": vehicle.vin,
+                    "source": "api.create_repair_order",
+                },
+                tags=["conduit", "pipeline"],
+            )
+            def _invoke():
+                return run_pipeline(
+                    ro_id=ro_id,
+                    vin=vehicle.vin,
+                    complaint_text=request.complaint_text,
+                    customer_id=request.customer_id,
+                )
+
+            state = _invoke()
+        except Exception as exc:
+            if _langsmith_enabled():
+                logger.warning({
+                    "event": "langsmith_trace_failed",
+                    "ro_id": ro_id,
+                    "error": str(exc),
+                })
+            state = run_pipeline(
+                ro_id          = ro_id,
+                vin            = vehicle.vin,
+                complaint_text = request.complaint_text,
+                customer_id    = request.customer_id,
+            )
 
         return build_ro_response(state, db)
 
@@ -230,13 +270,49 @@ def create_repair_order_stream(
         def _run():
             try:
                 from orchestrator import run_pipeline_streaming
-                for ev in run_pipeline_streaming(
-                    ro_id          = ro_id,
-                    vin            = vehicle.vin,
-                    complaint_text = request.complaint_text,
-                    customer_id    = request.customer_id,
-                ):
-                    event_q.put(ev)
+
+                # Optional LangSmith tracing (root run per streamed query).
+                try:
+                    from langsmith import traceable
+
+                    @traceable(
+                        name="conduit.pipeline_stream",
+                        run_type="chain",
+                        project_name=None,
+                        metadata={
+                            "ro_id": ro_id,
+                            "thread_id": ro_id,
+                            "vin": vehicle.vin,
+                            "source": "api.create_repair_order_stream",
+                        },
+                        tags=["conduit", "pipeline", "stream"],
+                        reduce_fn=lambda events: events[-1] if events else None,
+                    )
+                    def _events():
+                        for ev in run_pipeline_streaming(
+                            ro_id=ro_id,
+                            vin=vehicle.vin,
+                            complaint_text=request.complaint_text,
+                            customer_id=request.customer_id,
+                        ):
+                            yield ev
+
+                    for ev in _events():
+                        event_q.put(ev)
+                except Exception as exc:
+                    if _langsmith_enabled():
+                        logger.warning({
+                            "event": "langsmith_trace_failed",
+                            "ro_id": ro_id,
+                            "error": str(exc),
+                        })
+                    for ev in run_pipeline_streaming(
+                        ro_id          = ro_id,
+                        vin            = vehicle.vin,
+                        complaint_text = request.complaint_text,
+                        customer_id    = request.customer_id,
+                    ):
+                        event_q.put(ev)
             except Exception as exc:
                 event_q.put({"event": "error", "message": str(exc)})
             finally:

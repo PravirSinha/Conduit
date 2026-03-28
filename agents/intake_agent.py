@@ -75,7 +75,24 @@ def classify_fault_with_llm(
     """
     from openai import OpenAI
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    raw_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = raw_client
+
+    # If LangSmith tracing is enabled AND a LangSmith API key is present,
+    # wrap the OpenAI client so each chat.completions call appears in LangSmith.
+    # IMPORTANT: tracing must never break the pipeline.
+    try:
+        tracing_enabled = (
+            os.getenv("LANGCHAIN_TRACING_V2", "false").lower() == "true" or
+            os.getenv("LANGSMITH_TRACING", "false").lower() == "true"
+        )
+        has_langsmith_key = bool(os.getenv("LANGCHAIN_API_KEY") or os.getenv("LANGSMITH_API_KEY"))
+        if tracing_enabled and has_langsmith_key:
+            from langsmith.wrappers import wrap_openai
+            client = wrap_openai(client)
+    except Exception:
+        # Never fail the actual LLM call due to tracing setup.
+        pass
 
     # Format retrieved parts for the prompt
     parts_context = "\n".join([
@@ -159,17 +176,29 @@ Rules:
 - confidence should reflect how clear the complaint is (0.0 to 1.0)
 - If complaint is too vague, set fault_classification to UNKNOWN and urgency to NEEDS_CLARIFICATION"""
 
-    response = client.chat.completions.create(
-        model=os.getenv("OPENAI_MODEL_NAME", "gpt-4o"),
-        messages=[
+    request_kwargs = {
+        "model": os.getenv("OPENAI_MODEL_NAME", "gpt-4o"),
+        "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": user_prompt},
         ],
-        response_format={"type": "json_object"},
-        temperature=0.1,   # low temperature = more deterministic classification
-        max_tokens=500,
-        timeout=30,        # fail fast rather than hang forever
-    )
+        "response_format": {"type": "json_object"},
+        "temperature": 0.1,   # low temperature = more deterministic classification
+        "max_tokens": 500,
+        "timeout": 30,        # fail fast rather than hang forever
+    }
+
+    try:
+        response = client.chat.completions.create(**request_kwargs)
+    except Exception as e:
+        # If tracing is enabled, the wrapped client can fail due to LangSmith
+        # auth/endpoint issues. Never break pipeline correctness because of that.
+        msg = str(e).lower()
+        looks_like_tracing_issue = any(s in msg for s in ["langsmith", "langchain", "smith", "session_id", "project", "tracing"])
+        if client is not raw_client and looks_like_tracing_issue:
+            response = raw_client.chat.completions.create(**request_kwargs)
+        else:
+            raise
 
     raw_response = response.choices[0].message.content
     classification = json.loads(raw_response)

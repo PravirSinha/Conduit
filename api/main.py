@@ -113,6 +113,31 @@ async def startup():
         "message":     "CONDUIT API starting up",
     })
 
+    # Log LangSmith tracing config (no secrets) so we can debug missing traces.
+    try:
+        tracing_enabled = (
+            os.getenv("LANGCHAIN_TRACING_V2", "false").lower() == "true" or
+            os.getenv("LANGSMITH_TRACING", "false").lower() == "true"
+        )
+        project = (
+            os.getenv("LANGCHAIN_PROJECT") or
+            os.getenv("LANGSMITH_PROJECT")
+        )
+        endpoint = (
+            os.getenv("LANGCHAIN_ENDPOINT") or
+            os.getenv("LANGSMITH_ENDPOINT")
+        )
+        has_key = bool(os.getenv("LANGCHAIN_API_KEY") or os.getenv("LANGSMITH_API_KEY"))
+        logger.info({
+            "event": "langsmith_config",
+            "enabled": tracing_enabled,
+            "project": project,
+            "endpoint": endpoint,
+            "api_key_present": has_key,
+        })
+    except Exception:
+        pass
+
     try:
         validate_required_config()
         check_db_connection()
