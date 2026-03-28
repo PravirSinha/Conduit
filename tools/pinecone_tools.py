@@ -57,10 +57,27 @@ def get_pinecone_index():
 def get_openai_client():
     from openai import OpenAI
     import httpx
-    return OpenAI(
+
+    raw_client = OpenAI(
         api_key=os.getenv("OPENAI_API_KEY"),
         timeout=httpx.Timeout(30.0, connect=10.0),
     )
+
+    # Best-effort LangSmith tracing for embedding calls.
+    # IMPORTANT: tracing must never break the pipeline.
+    try:
+        tracing_enabled = (
+            os.getenv("LANGCHAIN_TRACING_V2", "false").lower() == "true" or
+            os.getenv("LANGSMITH_TRACING", "false").lower() == "true"
+        )
+        has_langsmith_key = bool(os.getenv("LANGCHAIN_API_KEY") or os.getenv("LANGSMITH_API_KEY"))
+        if tracing_enabled and has_langsmith_key:
+            from langsmith.wrappers import wrap_openai
+            return wrap_openai(raw_client)
+    except Exception:
+        pass
+
+    return raw_client
 
 
 def embed_text(text: str) -> List[float]:
