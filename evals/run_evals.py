@@ -20,7 +20,7 @@ Cost summary:
     Total:          ~$1.05
 """
 
-import os, sys, time, json, argparse, subprocess
+import os, sys, time, json, argparse, subprocess, hashlib
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -41,6 +41,73 @@ ALL_MODULES = [
     ("rag/eval_rag_retrieval.py",          "RAG Retrieval (Pinecone)",    "~$0.05"),
     ("pipeline/eval_full_pipeline.py",     "Full Pipeline (end-to-end)", "~$0.80"),
 ]
+
+
+def _safe_env(key: str) -> str | None:
+    val = os.getenv(key)
+    return val if val else None
+
+
+def _get_git_sha() -> str | None:
+    """Best-effort git SHA resolution (works in CI; fails open in Docker images without .git)."""
+    for k in ("GIT_SHA", "GITHUB_SHA", "VERCEL_GIT_COMMIT_SHA"):
+        v = _safe_env(k)
+        if v:
+            return v
+
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+        sha = (proc.stdout or "").strip()
+        return sha or None
+    except Exception:
+        return None
+
+
+def _hash_files(file_paths: list[str]) -> str | None:
+    """SHA256 hash of (relative_path + content) for stable dataset/version fingerprints."""
+    if not file_paths:
+        return None
+    h = hashlib.sha256()
+    for rel_path in sorted(set(file_paths)):
+        h.update(rel_path.replace("\\", "/").encode("utf-8"))
+        h.update(b"\n")
+        try:
+            with open(rel_path, "rb") as f:
+                while True:
+                    chunk = f.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    h.update(chunk)
+        except Exception:
+            # Fail-open: include filename but skip unreadable content.
+            continue
+        h.update(b"\n")
+    return h.hexdigest()
+
+
+def _datasets_fingerprint() -> dict:
+    datasets_dir = os.path.join(EVALS_DIR, "datasets")
+    dataset_files: list[str] = []
+
+    if os.path.isdir(datasets_dir):
+        for root, _, files in os.walk(datasets_dir):
+            for fn in files:
+                if fn.lower().endswith(".json"):
+                    dataset_files.append(os.path.join(root, fn))
+
+    digest = _hash_files(dataset_files)
+    return {
+        "datasets_dir": "evals/datasets",
+        "datasets_files": [os.path.relpath(p, EVALS_DIR).replace("\\", "/") for p in sorted(dataset_files)],
+        "datasets_files_count": len(dataset_files),
+        "datasets_hash_sha256": digest,
+    }
 
 
 def run_module(rel_path: str, label: str, cost: str) -> dict:
@@ -119,6 +186,14 @@ def save_summary(results: list, total_elapsed: float):
         },
     ]
 
+    git_sha = _get_git_sha()
+    meta = {
+        "git_sha": git_sha,
+        "git_sha_short": (git_sha[:7] if git_sha else None),
+        "openai_model": os.getenv("OPENAI_MODEL_NAME", "gpt-4o"),
+        **_datasets_fingerprint(),
+    }
+
     summary = {
         "run_at":        datetime.utcnow().isoformat() + "Z",
         "total_elapsed": round(total_elapsed, 1),
@@ -126,6 +201,7 @@ def save_summary(results: list, total_elapsed: float):
         "passed":        sum(1 for r in results if r["passed"]),
         "failed":        sum(1 for r in results if not r["passed"]),
         "total":         len(results),
+        "meta":          meta,
         "headline_metrics": headline_metrics,
         "eval_metrics": eval_metrics,
         "modules":       results,

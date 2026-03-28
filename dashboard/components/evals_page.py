@@ -105,6 +105,61 @@ def _get_headline_metrics(summary: dict) -> list[dict]:
     ]
 
 
+def _eval_metrics_rows(summary: dict) -> list[dict]:
+    eval_metrics = summary.get("eval_metrics") or {}
+    if not isinstance(eval_metrics, dict):
+        return []
+
+    rows: list[dict] = []
+    for name, m in eval_metrics.items():
+        if not isinstance(m, dict):
+            continue
+        rows.append(
+            {
+                "Eval": m.get("eval") or name,
+                "Pass rate": m.get("pass_rate"),
+                "Passed": m.get("passed"),
+                "Failed": m.get("failed"),
+                "Total": m.get("total"),
+            }
+        )
+
+    # Stable ordering: highest importance first if present, then alpha.
+    priority = ["Fault Classification Accuracy", "RAG Recall@5"]
+    rows.sort(
+        key=lambda r: (
+            priority.index(r["Eval"]) if r.get("Eval") in priority else 999,
+            str(r.get("Eval") or ""),
+        )
+    )
+    return rows
+
+
+def _snapshot_context_lines(summary: dict) -> list[str]:
+    meta = summary.get("meta") or {}
+    if not isinstance(meta, dict):
+        return []
+
+    parts: list[str] = []
+    model = meta.get("openai_model")
+    if model:
+        parts.append(f"Model: {model}")
+
+    ds_hash = meta.get("datasets_hash_sha256")
+    if ds_hash:
+        ds_count = meta.get("datasets_files_count")
+        if isinstance(ds_count, int):
+            parts.append(f"Datasets: {ds_count} files · {str(ds_hash)[:7]}…")
+        else:
+            parts.append(f"Datasets: {str(ds_hash)[:7]}…")
+
+    sha = meta.get("git_sha_short") or (str(meta.get("git_sha"))[:7] if meta.get("git_sha") else None)
+    if sha and sha != "None":
+        parts.append(f"Commit: {sha}")
+
+    return parts
+
+
 def render_evals():
 
     st.markdown("""
@@ -132,6 +187,15 @@ def render_evals():
             ✓ Live snapshot — committed results, $0.00 to view
         </div>
         """, unsafe_allow_html=True)
+
+    ctx = _snapshot_context_lines(summary)
+    if ctx:
+        st.caption(" · ".join(ctx))
+
+        with st.expander("ℹ️ Snapshot context"):
+            meta = summary.get("meta") or {}
+            if isinstance(meta, dict):
+                st.json(meta)
 
     # ── Data ──────────────────────────────────────────────────────────────────
     all_passed    = summary.get("all_passed", False)
@@ -185,10 +249,28 @@ def render_evals():
     with c3:
         st.metric(m3["label"], _fmt_percent(m3["value"]))
 
+    st.caption(
+        "Intake Accuracy and RAG Recall@5 are computed from DeepEval runs. "
+        "They show as N/A if the corresponding eval module failed or was skipped in the last snapshot."
+    )
+
     st.markdown("---")
 
     # ── Module cards ──────────────────────────────────────────────────────────
     st.markdown("#### Module Breakdown")
+
+    with st.expander("🛡️ What guardrails are enforced?"):
+        st.markdown(
+            """
+These guardrails are deterministic validation rules enforced **before writing to the DB** or passing state to the next agent.
+
+- **Intake Agent guardrails**: required fields exist, allowed enums for `fault_classification` and `urgency`, `confidence` is within [0,1], and a **safety override** blocks `BRAKE_SYSTEM` / `EV_SYSTEM` outputs with `LOW` urgency.
+- **Quoting Agent guardrails**: totals must be positive, line-items must exist, arithmetic must add up, **discount is capped at 30%** (unless recall), and **GST must be 18% of the post-discount amount**.
+- **Inventory / Transaction / Replenishment validators**: schema + sanity checks (required fields, non-negative quantities, quote_id present before transaction, and purchase orders must have positive value).
+
+These rules live in the agents as `validate_*_output(...)` and are covered by the `$0.00` pytest modules shown above.
+            """.strip()
+        )
 
     guardrail_labels = {"Guardrail", "Validator"}
     llm_labels       = {"Pipeline", "RAG", "LLM"}
@@ -235,6 +317,24 @@ def render_evals():
         st.markdown("")
 
     st.markdown("---")
+
+    # ── DeepEval breakdown (agent quality) ───────────────────────────────────
+    with st.expander("📊 DeepEval breakdown (agent quality metrics)"):
+        rows = _eval_metrics_rows(summary)
+        if rows:
+            st.dataframe(
+                rows,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Pass rate": st.column_config.NumberColumn(format="%.1f"),
+                },
+            )
+        else:
+            st.caption(
+                "No per-eval DeepEval metrics were recorded in this snapshot. "
+                "This usually means LLM/RAG eval modules failed or were skipped."
+            )
 
     # ── Cost model explainer ──────────────────────────────────────────────────
     st.markdown("#### 💡 Cost Model")
