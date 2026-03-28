@@ -1,15 +1,29 @@
 {
-  "run_at": "2026-03-26T06:34:21.158932Z",
-  "total_elapsed": 118.5,
-  "all_passed": false,
-  "passed": 8,
-  "failed": 2,
-  "total": 10,
+  "run_at": "2026-03-28T04:08:31.969011Z",
+  "total_elapsed": 29.0,
+  "all_passed": true,
+  "passed": 7,
+  "failed": 0,
+  "total": 7,
+  "meta": {
+    "git_sha": "e5e0a129893caab69cb7b5f3be090f4cf2a16286",
+    "git_sha_short": "e5e0a12",
+    "openai_model": "gpt-4o",
+    "datasets_dir": "evals/datasets",
+    "datasets_files": [
+      "datasets/intake_eval_cases.json",
+      "datasets/inventory_eval_cases.json",
+      "datasets/pipeline_eval_cases.json",
+      "datasets/quoting_eval_cases.json"
+    ],
+    "datasets_files_count": 4,
+    "datasets_hash_sha256": "8dee1d731f36a83a7d4427fe012d9f34834302b42ead79a03d1f3e25c8b88627"
+  },
   "headline_metrics": [
     {
       "id": "system_pass_rate",
       "label": "System Pass Rate",
-      "value": 80.0,
+      "value": 100.0,
       "unit": "%"
     },
     {
@@ -61,7 +75,7 @@
       "module": "guardrails/intake_guardrails.py",
       "cost": "$0.00",
       "passed": true,
-      "elapsed_s": 3.7,
+      "elapsed_s": 8.3,
       "returncode": 0
     },
     {
@@ -69,7 +83,7 @@
       "module": "guardrails/quoting_guardrails.py",
       "cost": "$0.00",
       "passed": true,
-      "elapsed_s": 6.5,
+      "elapsed_s": 3.7,
       "returncode": 0
     },
     {
@@ -77,7 +91,7 @@
       "module": "guardrails/output_validator.py",
       "cost": "$0.00",
       "passed": true,
-      "elapsed_s": 11.1,
+      "elapsed_s": 4.0,
       "returncode": 0
     },
     {
@@ -85,7 +99,7 @@
       "module": "component/eval_inventory_agent.py",
       "cost": "$0.00",
       "passed": true,
-      "elapsed_s": 5.5,
+      "elapsed_s": 3.1,
       "returncode": 0
     },
     {
@@ -93,7 +107,7 @@
       "module": "component/eval_quoting_agent.py",
       "cost": "$0.00",
       "passed": true,
-      "elapsed_s": 5.0,
+      "elapsed_s": 2.9,
       "returncode": 0
     },
     {
@@ -101,7 +115,7 @@
       "module": "component/eval_transaction_agent.py",
       "cost": "$0.00",
       "passed": true,
-      "elapsed_s": 4.0,
+      "elapsed_s": 3.7,
       "returncode": 0
     },
     {
@@ -109,32 +123,8 @@
       "module": "component/eval_replenishment_agent.py",
       "cost": "$0.00",
       "passed": true,
-      "elapsed_s": 2.8,
+      "elapsed_s": 3.2,
       "returncode": 0
-    },
-    {
-      "label": "Intake Agent (LLM)",
-      "module": "component/eval_intake_agent.py",
-      "cost": "~$0.20",
-      "passed": false,
-      "elapsed_s": 74.8,
-      "returncode": 1
-    },
-    {
-      "label": "RAG Retrieval (Pinecone)",
-      "module": "rag/eval_rag_retrieval.py",
-      "cost": "~$0.05",
-      "passed": true,
-      "elapsed_s": 1.8,
-      "returncode": 0
-    },
-    {
-      "label": "Full Pipeline (end-to-end)",
-      "module": "pipeline/eval_full_pipeline.py",
-      "cost": "~$0.80",
-      "passed": false,
-      "elapsed_s": 3.4,
-      "returncode": 1
     }
   ]
 }
