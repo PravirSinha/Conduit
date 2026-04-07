@@ -6,10 +6,10 @@
 graph TB
     subgraph CLIENT["Client Layer"]
         SA[Service Advisor]
-        DASH[Streamlit Dashboard<br/>port 8501]
+        DASH[Streamlit Dashboard<br/>Cloud Run]
     end
 
-    subgraph API["API Layer — FastAPI port 8000"]
+    subgraph API["API Layer — FastAPI — Cloud Run"]
         EP[REST Endpoints<br/>7 route modules]
         SSE[SSE Stream<br/>/repair-orders/stream]
     end
@@ -31,7 +31,7 @@ graph TB
     end
 
     subgraph STORE["Data Layer"]
-        PG[(PostgreSQL 15<br/>9 tables<br/>AWS RDS)]
+        PG[(PostgreSQL 15<br/>9 tables<br/>GCP Cloud SQL)]
         PC[(Pinecone<br/>Parts Catalog<br/>Vector DB)]
     end
 
@@ -200,20 +200,22 @@ graph TB
         CODE[Source Code]
         CI[ci.yml<br/>Lint + 159 Tests]
         CD[deploy.yml<br/>Build + Push + Deploy]
+        SEC[GitHub Secrets<br/>API keys + HITL flags]
     end
 
-    subgraph AWS["AWS ap-south-1 Mumbai"]
-        ECR[ECR<br/>Docker Registry]
+    subgraph GCP["GCP asia-south1"]
+        AR[Artifact Registry<br/>Docker Images]
 
-        subgraph EC2["EC2 t3.medium"]
-            DC[Docker Compose]
+        subgraph CR_API["Cloud Run — conduit"]
             API2[FastAPI<br/>:8000]
-            DASH2[Streamlit<br/>:8501]
-            NGX[Nginx<br/>Reverse Proxy]
         end
 
-        subgraph RDS["RDS"]
-            DB2[(PostgreSQL 15<br/>db.t3.micro<br/>private subnet)]
+        subgraph CR_DASH["Cloud Run — conduit-dashboard"]
+            DASH2[Streamlit<br/>:8501]
+        end
+
+        subgraph CSQL["Cloud SQL"]
+            DB2[(PostgreSQL 15<br/>private subnet)]
         end
     end
 
@@ -225,13 +227,12 @@ graph TB
 
     CODE --> CI
     CI -->|pass| CD
-    CD --> ECR
-    ECR --> DC
-    DC --> API2
-    DC --> DASH2
-    NGX -->|proxy| API2
-    NGX -->|proxy| DASH2
-    API2 --> DB2
+    SEC --> CD
+    CD --> AR
+    AR --> CR_API
+    AR --> CR_DASH
+    API2 -->|Unix socket| DB2
+    DASH2 -->|API_URL| API2
     API2 --> OAI
     API2 --> PIN
     API2 -.->|traces| LSM

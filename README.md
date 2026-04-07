@@ -15,7 +15,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Containerised-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docker.com)
 [![LangSmith](https://img.shields.io/badge/LangSmith-Observability-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://smith.langchain.com)
 [![DeepEval](https://img.shields.io/badge/DeepEval-LLM_Evals-7C3AED?style=flat-square&logo=checkmarx&logoColor=white)](https://docs.confident-ai.com)
-[![AWS](https://img.shields.io/badge/AWS-EC2_+_RDS-FF9900?style=flat-square&logo=amazonaws&logoColor=white)](https://aws.amazon.com)
+[![GCP](https://img.shields.io/badge/GCP-Cloud_Run_+_Cloud_SQL-4285F4?style=flat-square&logo=googlecloud&logoColor=white)](https://cloud.google.com)
 [![Tests](https://img.shields.io/badge/Tests-159_passing-22C55E?style=flat-square&logo=pytest&logoColor=white)](./tests)
 [![Evals](https://img.shields.io/badge/Evals-87_passing-22C55E?style=flat-square&logo=checkmarx&logoColor=white)](./evals)
 [![CI](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)](./github/workflows)
@@ -31,6 +31,17 @@ CONDUIT is a **production-grade multi-agent AI system** built for automotive ser
 The entire pipeline runs in under 45 seconds with real-time visibility via Server-Sent Events streaming.
 
 > **Why this matters:** Traditional automotive service workflows involve manual lookup across 3-4 systems, paper-based quoting, and no intelligent prioritisation. CONDUIT collapses that into a single, auditable AI pipeline with full observability.
+
+---
+
+## Live Demo
+
+| Service | URL |
+|---------|-----|
+| **Streamlit Dashboard** | https://conduit-dashboard-577817366021.asia-south1.run.app |
+| **FastAPI Backend** | https://conduit-577817366021.asia-south1.run.app |
+| **API Docs** | https://conduit-577817366021.asia-south1.run.app/docs |
+| **Health Check** | https://conduit-577817366021.asia-south1.run.app/health |
 
 ---
 
@@ -210,8 +221,8 @@ Database            PostgreSQL 15 + SQLAlchemy + Alembic
 Observability       LangSmith (traces) + DeepEval (evals)
 Testing             pytest (159 tests) + custom evals (87 tests)
 CI/CD               GitHub Actions
-Infrastructure      AWS EC2 (t3.medium) + AWS RDS + AWS ECR
-Containerisation    Docker + Docker Compose
+Infrastructure      GCP Cloud Run + GCP Cloud SQL + GCP Artifact Registry
+Containerisation    Docker
 ```
 
 ---
@@ -324,7 +335,7 @@ Conduit/
 ├── config.py                   # Environment configuration
 └── .github/workflows/
     ├── ci.yml                  # Lint + test on every push
-    └── deploy.yml              # Build → ECR → EC2 on merge
+    └── deploy.yml              # Build → Artifact Registry → Cloud Run on merge
 ```
 
 ---
@@ -390,7 +401,7 @@ Pinecone API key (free tier sufficient)
 
 ```bash
 # 1. Clone
-git clone https://github.com/yourusername/conduit.git
+git clone https://github.com/PravirSinha/Conduit.git
 cd conduit
 
 # 2. Virtual environment
@@ -465,15 +476,15 @@ LANGSMITH_PROJECT=conduit-portfolio
 
 ---
 
-## AWS Deployment
+## Deployment
 
-CONDUIT is deployed on AWS with:
-- **EC2 t3.medium** — application (FastAPI + Streamlit + Docker)
-- **RDS PostgreSQL 15** — managed database (not publicly accessible)
-- **ECR** — Docker image registry
+CONDUIT is deployed on Google Cloud Platform with:
+- **Cloud Run** — serverless container hosting for FastAPI backend and Streamlit dashboard (auto-scales, no server management)
+- **Cloud SQL PostgreSQL 15** — managed database (private, accessed via Unix socket)
+- **Artifact Registry** — Docker image registry
 - **GitHub Actions** — CI/CD pipeline (ci.yml → deploy.yml)
 
-Deployment is triggered automatically on push to `main` after all tests pass.
+Deployment is triggered automatically on push to `main` after all tests pass. HITL flags and all secrets are managed via GitHub Secrets — update a secret, re-run the deploy workflow, and Cloud Run picks up the new value automatically.
 
 ---
 
@@ -490,6 +501,9 @@ SSE is unidirectional (server → client) which is exactly what pipeline streami
 
 **Why separate Quoting guardrails?**  
 GST miscalculation is a regulatory violation, not just a bug. By running deterministic validation on every quote output before DB write, we ensure 100% financial accuracy regardless of LLM behaviour.
+
+**Why Cloud Run over a VM?**  
+Cloud Run eliminates server management entirely — no patching, no capacity planning, no SSH keys. For a portfolio project that needs to be reliably accessible to recruiters at any time, serverless auto-scaling is the right trade-off.
 
 ---
 
@@ -538,7 +552,6 @@ Rather than running quality evals only at deploy time, a low-cost enhancement is
 ## Author
 
 Built by **Pravir Sinha**  
-
 
 ---
 
