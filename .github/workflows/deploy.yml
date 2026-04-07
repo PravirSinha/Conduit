@@ -7,8 +7,8 @@ on:
     types: [completed]
 
 env:
-  AWS_REGION: ap-south-2
-  ECR_REPOSITORY: conduit
+  GCP_REGION: asia-south1
+  IMAGE: asia-south1-docker.pkg.dev/conduit-492602/conduit-repo/conduit
 
 jobs:
   deploy:
@@ -22,102 +22,51 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker asia-south1-docker.pkg.dev --quiet
 
       - name: Build and push Docker image
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -t ${{ env.IMAGE }}:$IMAGE_TAG -t ${{ env.IMAGE }}:latest .
+          docker push ${{ env.IMAGE }}:$IMAGE_TAG
+          docker push ${{ env.IMAGE }}:latest
 
-      - name: Write .env to EC2
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            mkdir -p ~/conduit
-            cat > ~/conduit/.env << 'ENVEOF'
-            # ── App ───────────────────────────────────────────
-            ENVIRONMENT=production
-            LOG_LEVEL=INFO
-            # Legacy aggregate toggle (kept for backward compatibility)
-            HITL_ENABLED=${{ secrets.HITL_ENABLED || 'false' }}
-
-            # Split HITL toggles
-            INTAKE_HITL_ENABLED=${{ secrets.INTAKE_HITL_ENABLED || secrets.HITL_ENABLED || 'false' }}
-            TRANSACTION_HITL_ENABLED=${{ secrets.TRANSACTION_HITL_ENABLED || secrets.HITL_ENABLED || 'false' }}
-
-            ADVISOR_PIN=${{ secrets.ADVISOR_PIN || '1234' }}
-            AUTO_APPROVE_THRESHOLD=50000
-            API_URL=http://localhost:8000
-
-            # ── OpenAI ────────────────────────────────────────
-            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-            OPENAI_MODEL_NAME=gpt-4o
-
-            # ── Pinecone ──────────────────────────────────────
-            PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}
-            PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}
-
-            # ── Database ──────────────────────────────────────
-            # Must be full RDS URL with sslmode=require
-            # e.g. postgresql://user:pass@host:5432/conduit?sslmode=require
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
-
-            # ── LangSmith ─────────────────────────────────────
-            LANGCHAIN_TRACING_V2=${{ secrets.LANGCHAIN_TRACING_V2 || 'true' }}
-            # IMPORTANT: default to EU endpoint to match the repo .env; override via secrets if needed.
-            LANGCHAIN_ENDPOINT=${{ secrets.LANGCHAIN_ENDPOINT || 'https://eu.api.smith.langchain.com' }}
-            LANGCHAIN_API_KEY=${{ secrets.LANGCHAIN_API_KEY }}
-            LANGCHAIN_PROJECT=${{ secrets.LANGCHAIN_PROJECT || 'conduit-portfolio' }}
-
-            # Also export LANGSMITH_* aliases for compatibility with newer SDKs / wrappers.
-            LANGSMITH_TRACING=${{ secrets.LANGSMITH_TRACING || secrets.LANGCHAIN_TRACING_V2 || 'true' }}
-            LANGSMITH_ENDPOINT=${{ secrets.LANGSMITH_ENDPOINT || secrets.LANGCHAIN_ENDPOINT || 'https://eu.api.smith.langchain.com' }}
-            LANGSMITH_API_KEY=${{ secrets.LANGSMITH_API_KEY || secrets.LANGCHAIN_API_KEY }}
-            LANGSMITH_PROJECT=${{ secrets.LANGSMITH_PROJECT || secrets.LANGCHAIN_PROJECT || 'conduit-portfolio' }}
-            ENVEOF
-
-            echo ".env written successfully"
-
-      - name: Deploy on EC2 via SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Deploy to Cloud Run
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
-          AWS_REGION: ${{ env.AWS_REGION }}
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          envs: ECR_REGISTRY,IMAGE_TAG,AWS_REGION,ECR_REPOSITORY
-          script: |
-            set -e
-            # Aggressively free disk before pulling new image
-            docker system prune -af --volumes || true
-
-            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
-            docker pull $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-            docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REPOSITORY:latest
-
-            cd ~/conduit
-            docker-compose down
-            docker-compose up -d --force-recreate
-
-            # Clean up again after old containers are stopped
-            docker system prune -af || true
+        run: |
+          gcloud run deploy conduit \
+            --image=${{ env.IMAGE }}:$IMAGE_TAG \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --add-cloudsql-instances=conduit-492602:asia-south1:conduit-db \
+            --port=8000 \
+            --set-env-vars="ENVIRONMENT=production" \
+            --set-env-vars="LOG_LEVEL=INFO" \
+            --set-env-vars="OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" \
+            --set-env-vars="OPENAI_MODEL_NAME=gpt-4o" \
+            --set-env-vars="PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}" \
+            --set-env-vars="PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}" \
+            --set-env-vars="DATABASE_URL=postgresql://conduit_user:conduit_pass@/conduit?host=/cloudsql/conduit-492602:asia-south1:conduit-db" \
+            --set-env-vars="LANGCHAIN_TRACING_V2=${{ secrets.LANGCHAIN_TRACING_V2 }}" \
+            --set-env-vars="LANGCHAIN_API_KEY=${{ secrets.LANGCHAIN_API_KEY }}" \
+            --set-env-vars="LANGCHAIN_PROJECT=${{ secrets.LANGCHAIN_PROJECT }}" \
+            --set-env-vars="LANGSMITH_API_KEY=${{ secrets.LANGSMITH_API_KEY }}" \
+            --set-env-vars="LANGSMITH_ENDPOINT=${{ secrets.LANGSMITH_ENDPOINT }}" \
+            --set-env-vars="LANGSMITH_PROJECT=${{ secrets.LANGSMITH_PROJECT }}" \
+            --set-env-vars="INTAKE_HITL_ENABLED=${{ secrets.INTAKE_HITL_ENABLED }}" \
+            --set-env-vars="TRANSACTION_HITL_ENABLED=${{ secrets.TRANSACTION_HITL_ENABLED }}" \
+            --set-env-vars="HITL_ENABLED=${{ secrets.HITL_ENABLED }}" \
+            --set-env-vars="ADVISOR_PIN=${{ secrets.ADVISOR_PIN }}" \
+            --set-env-vars="AUTO_APPROVE_THRESHOLD=50000"
