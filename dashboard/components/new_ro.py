@@ -105,8 +105,6 @@ def render_agent_step(container, agent_name, status, summary=None, elapsed=None,
 
     error_html = ""
     if error_msg and status == "error":
-        # Use a plain-text approach to avoid Streamlit HTML sanitization
-        # The outer card HTML above handles the styling; we append a native element
         pass
 
     container.markdown(f"""
@@ -124,13 +122,35 @@ def render_agent_step(container, agent_name, status, summary=None, elapsed=None,
     </div>
     """, unsafe_allow_html=True)
 
-    # Render error message as native Streamlit element to avoid HTML injection issues
     if error_msg and status == "error":
         short = error_msg[:200] + ("..." if len(error_msg) > 200 else "")
         container.error(short, icon="🚫")
 
 
+def _init_session_state():
+    """Initialise all HITL-related session state keys if not already set."""
+    defaults = {
+        "hitl_ro_id":     None,
+        "hitl_event":     None,
+        "hitl_pending":   False,
+        "final_event":    None,
+    }
+    for key, val in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
+
+
+def _clear_hitl_state():
+    """Reset HITL session state — call on fresh pipeline run."""
+    st.session_state["hitl_ro_id"]   = None
+    st.session_state["hitl_event"]   = None
+    st.session_state["hitl_pending"] = False
+    st.session_state["final_event"]  = None
+
+
 def render_new_ro():
+
+    _init_session_state()
 
     intake_hitl_label = "ON" if INTAKE_HITL_ENABLED else "OFF"
     intake_hitl_color = "#22c55e" if INTAKE_HITL_ENABLED else "#64748b"
@@ -195,7 +215,6 @@ def render_new_ro():
         st.markdown('<div class="section-header">Live Pipeline</div>',
                     unsafe_allow_html=True)
 
-        # Render waiting state for all agents
         agent_placeholders = {}
         for agent_name in AGENT_META:
             agent_placeholders[agent_name] = st.empty()
@@ -203,110 +222,120 @@ def render_new_ro():
 
         timing_ph = st.empty()
 
-    # ── SSE STREAMING EXECUTION ───────────────────────────────────────────
-    if not submit:
-        return
+    # ── HANDLE FRESH PIPELINE RUN ─────────────────────────────────────────
+    if submit:
+        if not vin:
+            st.error("VIN is required")
+            return
+        if not complaint:
+            st.error("Complaint description is required")
+            return
 
-    if not vin:
-        st.error("VIN is required")
-        return
-    if not complaint:
-        st.error("Complaint description is required")
-        return
+        # Clear any previous HITL state when starting a new run
+        _clear_hitl_state()
 
-    st.markdown("<hr>", unsafe_allow_html=True)
-    status_ph = st.empty()
-    status_ph.markdown("""
-    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.8rem;color:#f97316;">
-        ⟳ Connecting to pipeline...
-    </div>""", unsafe_allow_html=True)
+        st.markdown("<hr>", unsafe_allow_html=True)
+        status_ph = st.empty()
+        status_ph.markdown("""
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.8rem;color:#f97316;">
+            ⟳ Connecting to pipeline...
+        </div>""", unsafe_allow_html=True)
 
-    final_event = None
-    ro_id       = None
-    hitl_event  = None
+        final_event = None
+        ro_id       = None
+        hitl_event  = None
 
-    try:
-        with requests.post(
-            f"{API_BASE}/repair-orders/stream",
-            json   = {
-                "vin":            vin.upper().strip(),
-                "complaint_text": complaint.strip(),
-                "customer_id":    customer_id.strip() or None,
-            },
-            stream  = True,
-            timeout = 300,
-        ) as resp:
+        try:
+            with requests.post(
+                f"{API_BASE}/repair-orders/stream",
+                json   = {
+                    "vin":            vin.upper().strip(),
+                    "complaint_text": complaint.strip(),
+                    "customer_id":    customer_id.strip() or None,
+                },
+                stream  = True,
+                timeout = 300,
+            ) as resp:
 
-            resp.raise_for_status()
+                resp.raise_for_status()
 
-            for raw_line in resp.iter_lines():
-                if not raw_line:
-                    continue
+                for raw_line in resp.iter_lines():
+                    if not raw_line:
+                        continue
 
-                line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
-                if not line.startswith("data: "):
-                    continue
+                    line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
+                    if not line.startswith("data: "):
+                        continue
 
-                try:
-                    event = json.loads(line[6:])
-                except json.JSONDecodeError:
-                    continue
+                    try:
+                        event = json.loads(line[6:])
+                    except json.JSONDecodeError:
+                        continue
 
-                etype = event.get("event")
-                agent = event.get("agent")
+                    etype = event.get("event")
+                    agent = event.get("agent")
 
-                if etype == "ro_created":
-                    ro_id = event.get("ro_id")
-                    status_ph.markdown(f"""
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem;color:#64748b;">
-                        RO: <span style="color:#f97316;">{ro_id}</span> · Pipeline running...
-                    </div>""", unsafe_allow_html=True)
+                    if etype == "ro_created":
+                        ro_id = event.get("ro_id")
+                        st.session_state["hitl_ro_id"] = ro_id
+                        status_ph.markdown(f"""
+                        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem;color:#64748b;">
+                            RO: <span style="color:#f97316;">{ro_id}</span> · Pipeline running...
+                        </div>""", unsafe_allow_html=True)
 
-                elif etype == "agent_running" and agent in agent_placeholders:
-                    render_agent_step(agent_placeholders[agent], agent, "running")
+                    elif etype == "agent_running" and agent in agent_placeholders:
+                        render_agent_step(agent_placeholders[agent], agent, "running")
 
-                elif etype == "agent_complete" and agent in agent_placeholders:
-                    st_status = "error" if event.get("error") else "complete"
-                    render_agent_step(
-                        agent_placeholders[agent], agent, st_status,
-                        summary = event.get("summary", {}),
-                        elapsed = event.get("elapsed_agent", 0),
-                    )
+                    elif etype == "agent_complete" and agent in agent_placeholders:
+                        st_status = "error" if event.get("error") else "complete"
+                        render_agent_step(
+                            agent_placeholders[agent], agent, st_status,
+                            summary = event.get("summary", {}),
+                            elapsed = event.get("elapsed_agent", 0),
+                        )
 
-                elif etype == "agent_error" and agent in agent_placeholders:
-                    err = event.get("error", "Unknown error")
-                    render_agent_step(agent_placeholders[agent], agent, "error", error_msg=err)
-                    status_ph.error(f"✗ {err}")
-                    return
+                    elif etype == "agent_error" and agent in agent_placeholders:
+                        err = event.get("error", "Unknown error")
+                        render_agent_step(agent_placeholders[agent], agent, "error", error_msg=err)
+                        status_ph.error(f"✗ {err}")
+                        return
 
-                elif etype == "hitl_required":
-                    hitl_event = event
-                    status_ph.warning(event.get("message") or "Human inspection required", icon="🛑")
-                    break
+                    elif etype == "hitl_required":
+                        hitl_event = event
+                        st.session_state["hitl_event"]   = event
+                        st.session_state["hitl_pending"] = True
+                        status_ph.warning(event.get("message") or "Human inspection required", icon="🛑")
+                        break
 
-                elif etype == "pipeline_complete":
-                    final_event = event
-                    timing_ph.markdown(f"""
-                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;
-                                color:#22c55e;text-align:right;margin-top:4px;">
-                        ✓ Complete · {event.get('total_elapsed', 0):.1f}s total
-                    </div>""", unsafe_allow_html=True)
+                    elif etype == "pipeline_complete":
+                        final_event = event
+                        st.session_state["final_event"] = event
+                        timing_ph.markdown(f"""
+                        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;
+                                    color:#22c55e;text-align:right;margin-top:4px;">
+                            ✓ Complete · {event.get('total_elapsed', 0):.1f}s total
+                        </div>""", unsafe_allow_html=True)
 
-                elif etype == "error":
-                    status_ph.error(event.get("message", "Pipeline error"))
-                    return
+                    elif etype == "error":
+                        status_ph.error(event.get("message", "Pipeline error"))
+                        return
 
-    except requests.exceptions.Timeout:
-        status_ph.error("Timeout — agents may still be running in background")
-        return
-    except Exception as e:
-        status_ph.error(f"Connection error: {e}")
-        return
+        except requests.exceptions.Timeout:
+            status_ph.error("Timeout — agents may still be running in background")
+            return
+        except Exception as e:
+            status_ph.error(f"Connection error: {e}")
+            return
 
-    # ── INTAKE HITL (SUPERVISOR INPUT) ──────────────────────────────────
-    if hitl_event:
+    # ── RESTORE STATE FROM SESSION (survives Streamlit reruns) ───────────
+    # After a form submit Streamlit reruns the script — restore from session state
+    ro_id       = st.session_state.get("hitl_ro_id")
+    hitl_event  = st.session_state.get("hitl_event") if st.session_state.get("hitl_pending") else None
+    final_event = st.session_state.get("final_event") if not st.session_state.get("hitl_pending") else None
+
+    # ── INTAKE HITL (SUPERVISOR INPUT) ───────────────────────────────────
+    if hitl_event and st.session_state.get("hitl_pending"):
         if not INTAKE_HITL_ENABLED:
-            # Demo mode: show notification and stop (no supervisor workflow)
             return
 
         st.markdown("<br>", unsafe_allow_html=True)
@@ -327,6 +356,7 @@ def render_new_ro():
             submit_review = st.form_submit_button("Resume Pipeline")
 
         if not submit_review:
+            # Still waiting for supervisor input — show form and stop
             return
 
         if not pin:
@@ -341,50 +371,61 @@ def render_new_ro():
             st.error("RO ID missing — cannot submit review")
             return
 
-        resp = submit_intake_review(ro_id, {
-            "supervisor_id": supervisor_id.strip() or "SUP-001",
-            "pin": pin,
-            "supervisor_complaint_override": refined.strip(),
-            "supervisor_notes": refined.strip(),
-        })
+        with st.spinner("Resuming pipeline with supervisor input..."):
+            resp = submit_intake_review(ro_id, {
+                "supervisor_id": supervisor_id.strip() or "SUP-001",
+                "pin": pin,
+                "supervisor_complaint_override": refined.strip(),
+                "supervisor_notes": refined.strip(),
+            })
 
         if not resp:
-            st.error("Failed to submit intake review")
+            st.error("Failed to submit intake review — please check your PIN and try again")
             return
 
         resumed_state = resp.get("state") or {}
+
+        if resumed_state.get("error"):
+            st.error(f"Pipeline error after resume: {resumed_state['error']}")
+            return
+
         final_event = {
-            "ro_id": ro_id,
-            "fault": resumed_state.get("fault_classification"),
-            "urgency": resumed_state.get("urgency"),
-            "confidence": resumed_state.get("intake_confidence"),
-            "required_parts": resumed_state.get("required_parts", []),
-            "parts_available": resumed_state.get("parts_available"),
-            "quote_id": resumed_state.get("quote_id"),
-            "transaction_status": resumed_state.get("transaction_status"),
-            "approved_by": resumed_state.get("approved_by"),
-            "reorder_summary": resumed_state.get("reorder_summary"),
-            "pos_raised": resumed_state.get("pos_raised", []),
-            "quote": resumed_state.get("quote"),
-            "oem_quote": resumed_state.get("oem_quote"),
-            "aftermarket_quote": resumed_state.get("aftermarket_quote"),
-            "is_ev_job": resumed_state.get("is_ev_job"),
+            "ro_id":                  ro_id,
+            "fault":                  resumed_state.get("fault_classification"),
+            "urgency":                resumed_state.get("urgency"),
+            "confidence":             resumed_state.get("intake_confidence"),
+            "required_parts":         resumed_state.get("required_parts", []),
+            "parts_available":        resumed_state.get("parts_available"),
+            "quote_id":               resumed_state.get("quote_id"),
+            "transaction_status":     resumed_state.get("transaction_status"),
+            "approved_by":            resumed_state.get("approved_by"),
+            "reorder_summary":        resumed_state.get("reorder_summary"),
+            "pos_raised":             resumed_state.get("pos_raised", []),
+            "quote":                  resumed_state.get("quote"),
+            "oem_quote":              resumed_state.get("oem_quote"),
+            "aftermarket_quote":      resumed_state.get("aftermarket_quote"),
+            "is_ev_job":              resumed_state.get("is_ev_job"),
             "recall_action_required": resumed_state.get("recall_action_required"),
-            "error": resumed_state.get("error"),
-            "total_elapsed": 0,
+            "error":                  resumed_state.get("error"),
+            "total_elapsed":          0,
         }
+
+        # Pipeline resumed and completed — clear HITL pending, store final result
+        st.session_state["hitl_pending"] = False
+        st.session_state["hitl_event"]   = None
+        st.session_state["final_event"]  = final_event
+
+        st.success(f"Supervisor review accepted — pipeline resumed successfully for {ro_id}")
 
     if not final_event:
         return
 
-    status_ph.empty()
-
+    # ── RESULTS ───────────────────────────────────────────────────────────
     if final_event.get("error"):
         st.markdown(f'<div class="alert alert-danger">✗ {final_event["error"]}</div>',
                     unsafe_allow_html=True)
         return
 
-    # ── RESULTS ───────────────────────────────────────────────────────────
     c1, c2, c3, c4 = st.columns(4)
     with c1: st.metric("Fault",      final_event.get("fault", "—"))
     with c2: st.metric("Urgency",    final_event.get("urgency", "—"))
@@ -463,7 +504,7 @@ def render_new_ro():
         st.markdown(f'<div class="alert alert-warning">🚚 {final_event["reorder_summary"]}</div>',
                     unsafe_allow_html=True)
 
-    # PO breakdown (explains why PO value can be much larger than a single quote)
+    # PO breakdown
     pos_raised = final_event.get("pos_raised") or []
     if pos_raised:
         rows = []
@@ -485,6 +526,7 @@ def render_new_ro():
             st.dataframe(rows, use_container_width=True, hide_index=True)
 
     # Footer reference
+    ro_id = final_event.get("ro_id") or st.session_state.get("hitl_ro_id")
     if ro_id:
         st.markdown(f"""
         <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;

@@ -491,7 +491,7 @@ Deployment is triggered automatically on push to `main` after all tests pass. HI
 ## Design Decisions
 
 **Why LangGraph over a simple chain?**  
-Each agent has independent validation mechanism, guardrails, and retry logic. LangGraph's StateGraph makes it easy to pause the pipeline (HITL), resume after human approval, and inspect state at any node — something a simple sequential chain cannot do cleanly.
+Each agent has independent validation, guardrails, and retry logic. LangGraph's StateGraph makes it easy to pause the pipeline (HITL), resume after human approval, and inspect state at any node — something a simple sequential chain cannot do cleanly.
 
 **Why Pinecone for parts search?**  
 Customers don't describe faults in part numbers. *"Grinding noise from front wheels"* needs to map to `BRK-PAD-HON-F-01`. Semantic search handles this naturally; keyword search would require extensive synonym mapping.
