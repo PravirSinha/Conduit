@@ -345,20 +345,32 @@ def render_new_ro():
             icon="🧑‍🔧",
         )
 
-        with st.form("intake_hitl_form"):
-            supervisor_id = st.text_input("Supervisor ID", value="SUP-001")
-            pin = st.text_input("Supervisor PIN", type="password")
-            refined = st.text_area(
-                "Supervisor finding / diagnosis",
-                placeholder="e.g. battery not working; car not getting started",
-                height=90,
-            )
-            submit_review = st.form_submit_button("Resume Pipeline")
+        supervisor_id = st.text_input(
+            "Supervisor ID",
+            value="SUP-001",
+            key="hitl_supervisor_id"
+        )
+        pin = st.text_input(
+            "Supervisor PIN",
+            type="password",
+            key="hitl_pin"
+        )
+        refined = st.text_area(
+            "Supervisor finding / diagnosis",
+            placeholder="e.g. battery not working; car not getting started",
+            height=90,
+            key="hitl_refined"
+        )
+        submit_review = st.button(
+            "▶  Resume Pipeline",
+            key="hitl_submit",
+            use_container_width=True
+        )
 
         if not submit_review:
             # Still waiting for supervisor input — show form and stop
             return
-
+       
         if not pin:
             st.error("Supervisor PIN is required")
             return
