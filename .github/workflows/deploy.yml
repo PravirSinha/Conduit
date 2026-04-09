@@ -8,7 +8,10 @@ on:
 
 env:
   GCP_REGION: asia-south1
-  IMAGE: asia-south1-docker.pkg.dev/conduit-492602/conduit-repo/conduit
+  GCP_PROJECT: conduit-492602
+  IMAGE_BACKEND: asia-south1-docker.pkg.dev/conduit-492602/conduit-repo/conduit
+  IMAGE_DASHBOARD: asia-south1-docker.pkg.dev/conduit-492602/conduit-repo/conduit-dashboard
+  BACKEND_URL: https://conduit-577817366021.asia-south1.run.app
 
 jobs:
   deploy:
@@ -33,24 +36,39 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker asia-south1-docker.pkg.dev --quiet
 
-      - name: Build and push Docker image
+      # ── BUILD & PUSH BACKEND ─────────────────────────────────────────────
+      - name: Build and push backend image
         env:
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
         run: |
-          docker build -t ${{ env.IMAGE }}:$IMAGE_TAG -t ${{ env.IMAGE }}:latest .
-          docker push ${{ env.IMAGE }}:$IMAGE_TAG
-          docker push ${{ env.IMAGE }}:latest
+          docker build -t ${{ env.IMAGE_BACKEND }}:$IMAGE_TAG -t ${{ env.IMAGE_BACKEND }}:latest .
+          docker push ${{ env.IMAGE_BACKEND }}:$IMAGE_TAG
+          docker push ${{ env.IMAGE_BACKEND }}:latest
 
-      - name: Deploy to Cloud Run
+      # ── BUILD & PUSH DASHBOARD ───────────────────────────────────────────
+      - name: Build and push dashboard image
+        env:
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          docker build \
+            -f Dockerfile.dashboard \
+            -t ${{ env.IMAGE_DASHBOARD }}:$IMAGE_TAG \
+            -t ${{ env.IMAGE_DASHBOARD }}:latest \
+            .
+          docker push ${{ env.IMAGE_DASHBOARD }}:$IMAGE_TAG
+          docker push ${{ env.IMAGE_DASHBOARD }}:latest
+
+      # ── DEPLOY BACKEND TO CLOUD RUN ──────────────────────────────────────
+      - name: Deploy backend to Cloud Run
         env:
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
         run: |
           gcloud run deploy conduit \
-            --image=${{ env.IMAGE }}:$IMAGE_TAG \
+            --image=${{ env.IMAGE_BACKEND }}:$IMAGE_TAG \
             --region=${{ env.GCP_REGION }} \
             --platform=managed \
             --allow-unauthenticated \
-            --add-cloudsql-instances=conduit-492602:asia-south1:conduit-db \
+            --add-cloudsql-instances=${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:conduit-db \
             --port=8000 \
             --set-env-vars="ENVIRONMENT=production" \
             --set-env-vars="LOG_LEVEL=INFO" \
@@ -70,3 +88,25 @@ jobs:
             --set-env-vars="HITL_ENABLED=${{ secrets.HITL_ENABLED }}" \
             --set-env-vars="ADVISOR_PIN=${{ secrets.ADVISOR_PIN }}" \
             --set-env-vars="AUTO_APPROVE_THRESHOLD=50000"
+
+      # ── DEPLOY DASHBOARD TO CLOUD RUN ────────────────────────────────────
+      - name: Deploy dashboard to Cloud Run
+        env:
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          gcloud run deploy conduit-dashboard \
+            --image=${{ env.IMAGE_DASHBOARD }}:$IMAGE_TAG \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --port=8501 \
+            --min-instances=1 \
+            --set-env-vars="API_URL=${{ env.BACKEND_URL }}" \
+            --set-env-vars="INTAKE_HITL_ENABLED=${{ secrets.INTAKE_HITL_ENABLED }}" \
+            --set-env-vars="TRANSACTION_HITL_ENABLED=${{ secrets.TRANSACTION_HITL_ENABLED }}" \
+            --set-env-vars="HITL_ENABLED=${{ secrets.HITL_ENABLED }}" \
+            --set-env-vars="ADVISOR_PIN=${{ secrets.ADVISOR_PIN }}" \
+            --set-env-vars="OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" \
+            --set-env-vars="PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}" \
+            --set-env-vars="PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}" \
+            --set-env-vars="DATABASE_URL=postgresql://conduit_user:conduit_pass@/conduit?host=/cloudsql/conduit-492602:asia-south1:conduit-db"
