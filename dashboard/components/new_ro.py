@@ -148,9 +148,203 @@ def _clear_hitl_state():
     st.session_state["final_event"]  = None
 
 
+def _render_results(final_event, ro_id=None):
+    """Renders pipeline results — shared by normal completion and HITL resume."""
+    if final_event.get("error"):
+        st.markdown(f'<div class="alert alert-danger">✗ {final_event["error"]}</div>',
+                    unsafe_allow_html=True)
+        return
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: st.metric("Fault",      final_event.get("fault", "—"))
+    with c2: st.metric("Urgency",    final_event.get("urgency", "—"))
+    with c3:
+        conf = (final_event.get("confidence") or 0) * 100
+        st.metric("Confidence", f"{conf:.0f}%")
+    with c4: st.metric("Status",     final_event.get("transaction_status", "—"))
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    quote = final_event.get("quote")
+    if quote:
+        st.markdown('<div class="section-header">Quote Summary</div>', unsafe_allow_html=True)
+        col_oem, col_am = st.columns(2)
+        with col_oem:
+            st.markdown(f"""
+            <div class="quote-card">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
+                            letter-spacing:0.1em;text-transform:uppercase;color:#64748b;margin-bottom:0.5rem;">
+                    OEM Quote
+                </div>
+                <div class="quote-total">₹{quote.get('total_amount', 0):,.0f}</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;
+                            color:#64748b;margin-top:0.5rem;line-height:1.8;">
+                    Subtotal &nbsp;₹{quote.get('subtotal', 0):,.0f}<br>
+                    Discount -₹{quote.get('discount_amount', 0):,.0f}<br>
+                    GST 18% &nbsp;₹{quote.get('gst_amount', 0):,.0f}
+                </div>
+            </div>""", unsafe_allow_html=True)
+
+        am = final_event.get("aftermarket_quote")
+        with col_am:
+            if am:
+                saving = quote.get("total_amount", 0) - am.get("total_amount", 0)
+                st.markdown(f"""
+                <div class="quote-card" style="border-color:#1e3a5f;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
+                                letter-spacing:0.1em;text-transform:uppercase;color:#64748b;margin-bottom:0.5rem;">
+                        Aftermarket Option
+                    </div>
+                    <div class="quote-total" style="color:#3b82f6;">₹{am.get('total_amount', 0):,.0f}</div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;
+                                color:#22c55e;margin-top:0.5rem;">
+                        Customer saves ₹{saving:,.0f}
+                    </div>
+                </div>""", unsafe_allow_html=True)
+
+    parts = final_event.get("required_parts", [])
+    if parts:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown('<div class="section-header">Parts Identified</div>', unsafe_allow_html=True)
+        cols = st.columns(min(len(parts), 3))
+        for i, p in enumerate(parts):
+            with cols[i % 3]:
+                st.markdown(f"""
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:0.78rem;
+                            color:#1c1917;padding:6px 10px;background:#ffffff;
+                            border:1px solid #e2ded6;border-radius:4px;margin-bottom:4px;">
+                    ✓ {p}
+                </div>""", unsafe_allow_html=True)
+
+    ro_display = ro_id or final_event.get("ro_id")
+    if ro_display:
+        st.markdown(f"""
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;
+                    color:#334155;margin-top:1.5rem;padding-top:1rem;border-top:1px solid #1e1e2e;">
+            RO: <span style="color:#f97316;">{ro_display}</span>
+            &nbsp;·&nbsp; Quote: <span style="color:#f97316;">{final_event.get('quote_id', '—')}</span>
+        </div>""", unsafe_allow_html=True)
+
+
+def _render_hitl_supervisor_form():
+    """Renders the supervisor review form as a full standalone page."""
+    ro_id = st.session_state.get("hitl_ro_id")
+
+    st.markdown("""
+    <div style="margin-bottom:2rem;">
+        <h1 style="font-family:'IBM Plex Mono',monospace;font-size:2rem;
+                   font-weight:600;color:#1c1917;margin:0.25rem 0;">
+            Supervisor Review
+        </h1>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.warning(
+        f"Pipeline paused for RO **{ro_id}** — complaint is ambiguous. "
+        "Please provide a short diagnosis to resume.",
+        icon="🛑",
+    )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    supervisor_id = st.text_input("Supervisor ID", value="SUP-001", key="hitl_supervisor_id")
+    pin           = st.text_input("Supervisor PIN", type="password", key="hitl_pin")
+    refined       = st.text_area(
+        "Supervisor finding / diagnosis",
+        placeholder="e.g. battery not working; car not getting started",
+        height=120,
+        key="hitl_refined",
+    )
+
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        submit_review = st.button("▶  Resume Pipeline", key="hitl_submit", use_container_width=True)
+    with col2:
+        cancel = st.button("✕  Cancel", key="hitl_cancel", use_container_width=True)
+
+    if cancel:
+        _clear_hitl_state()
+        st.rerun()
+        return
+
+    if not submit_review:
+        return
+
+    pin_val     = st.session_state.get("hitl_pin", "")
+    refined_val = st.session_state.get("hitl_refined", "")
+    sup_id      = st.session_state.get("hitl_supervisor_id", "SUP-001")
+
+    if not pin_val:
+        st.error("Supervisor PIN is required")
+        return
+    if not refined_val.strip():
+        st.error("Please enter a short diagnosis to proceed")
+        return
+    if not ro_id:
+        st.error("RO ID missing — cannot submit review")
+        return
+
+    with st.spinner("Resuming pipeline with supervisor input..."):
+        resp = submit_intake_review(ro_id, {
+            "supervisor_id":                 sup_id.strip() or "SUP-001",
+            "pin":                           pin_val,
+            "supervisor_complaint_override":  refined_val.strip(),
+            "supervisor_notes":              refined_val.strip(),
+        })
+
+    if not resp:
+        st.error("Failed to submit intake review — please check your PIN and try again")
+        return
+
+    resumed_state = resp.get("state") or {}
+    if resumed_state.get("error"):
+        st.error(f"Pipeline error after resume: {resumed_state['error']}")
+        return
+
+    final_event = {
+        "ro_id":                  ro_id,
+        "fault":                  resumed_state.get("fault_classification"),
+        "urgency":                resumed_state.get("urgency"),
+        "confidence":             resumed_state.get("intake_confidence"),
+        "required_parts":         resumed_state.get("required_parts", []),
+        "parts_available":        resumed_state.get("parts_available"),
+        "quote_id":               resumed_state.get("quote_id"),
+        "transaction_status":     resumed_state.get("transaction_status"),
+        "approved_by":            resumed_state.get("approved_by"),
+        "reorder_summary":        resumed_state.get("reorder_summary"),
+        "pos_raised":             resumed_state.get("pos_raised", []),
+        "quote":                  resumed_state.get("quote"),
+        "oem_quote":              resumed_state.get("oem_quote"),
+        "aftermarket_quote":      resumed_state.get("aftermarket_quote"),
+        "is_ev_job":              resumed_state.get("is_ev_job"),
+        "recall_action_required": resumed_state.get("recall_action_required"),
+        "error":                  resumed_state.get("error"),
+        "total_elapsed":          0,
+    }
+
+    st.session_state["hitl_pending"] = False
+    st.session_state["hitl_event"]   = None
+    st.session_state["final_event"]  = final_event
+    st.rerun()
+
+
 def render_new_ro():
 
     _init_session_state()
+
+    # ── EARLY HITL CHECK — show supervisor form immediately if pipeline is paused ──
+    if st.session_state.get("hitl_pending") and st.session_state.get("hitl_event"):
+        _render_hitl_supervisor_form()
+        return
+
+    # ── SHOW RESULTS if pipeline just completed after HITL resume ──
+    if st.session_state.get("final_event") and not st.session_state.get("hitl_pending"):
+        _render_results(st.session_state["final_event"], st.session_state.get("hitl_ro_id"))
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("▶  New Repair Order", key="new_ro_after_hitl"):
+            _clear_hitl_state()
+            st.rerun()
+        return
 
     intake_hitl_label = "ON" if INTAKE_HITL_ENABLED else "OFF"
     intake_hitl_color = "#22c55e" if INTAKE_HITL_ENABLED else "#64748b"
@@ -327,115 +521,14 @@ def render_new_ro():
             status_ph.error(f"Connection error: {e}")
             return
 
-    # ── RESTORE STATE FROM SESSION (survives Streamlit reruns) ───────────
-    # After a form submit Streamlit reruns the script — restore from session state
-    ro_id       = st.session_state.get("hitl_ro_id")
-    hitl_event  = st.session_state.get("hitl_event") if st.session_state.get("hitl_pending") else None
-    final_event = st.session_state.get("final_event") if not st.session_state.get("hitl_pending") else None
+    if not st.session_state.get("final_event"):
+        return
 
-    # ── INTAKE HITL (SUPERVISOR INPUT) ───────────────────────────────────
-    if hitl_event and st.session_state.get("hitl_pending"):
-        if not INTAKE_HITL_ENABLED:
-            return
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown('<div class="section-header">Supervisor Review</div>', unsafe_allow_html=True)
-        st.info(
-            "This case is ambiguous. Add a short diagnosis (e.g. 'battery not working') to re-run Intake and continue the pipeline.",
-            icon="🧑‍🔧",
-        )
-
-        supervisor_id = st.text_input(
-            "Supervisor ID",
-            value="SUP-001",
-            key="hitl_supervisor_id",
-        )
-        pin = st.text_input(
-            "Supervisor PIN",
-            type="password",
-            key="hitl_pin",
-        )
-        refined = st.text_area(
-            "Supervisor finding / diagnosis",
-            placeholder="e.g. battery not working; car not getting started",
-            height=90,
-            key="hitl_refined",
-        )
-        submit_review = st.button(
-            "▶  Resume Pipeline",
-            key="hitl_submit",
-            use_container_width=True,
-        )
-
-        if not submit_review:
-            # Still waiting for supervisor input — show form and stop
-            return
-
-        pin     = st.session_state.get("hitl_pin", "")
-        refined = st.session_state.get("hitl_refined", "")
-
-        if not pin:
-            st.error("Supervisor PIN is required")
-            return
-
-        if not refined.strip():
-            st.error("Please enter a short diagnosis to proceed")
-            return
-
-        if not ro_id:
-            st.error("RO ID missing — cannot submit review")
-            return
-
-        with st.spinner("Resuming pipeline with supervisor input..."):
-            resp = submit_intake_review(ro_id, {
-                "supervisor_id": supervisor_id.strip() or "SUP-001",
-                "pin": pin,
-                "supervisor_complaint_override": refined.strip(),
-                "supervisor_notes": refined.strip(),
-            })
-
-        if not resp:
-            st.error("Failed to submit intake review — please check your PIN and try again")
-            return
-
-        resumed_state = resp.get("state") or {}
-
-        if resumed_state.get("error"):
-            st.error(f"Pipeline error after resume: {resumed_state['error']}")
-            return
-
-        final_event = {
-            "ro_id":                  ro_id,
-            "fault":                  resumed_state.get("fault_classification"),
-            "urgency":                resumed_state.get("urgency"),
-            "confidence":             resumed_state.get("intake_confidence"),
-            "required_parts":         resumed_state.get("required_parts", []),
-            "parts_available":        resumed_state.get("parts_available"),
-            "quote_id":               resumed_state.get("quote_id"),
-            "transaction_status":     resumed_state.get("transaction_status"),
-            "approved_by":            resumed_state.get("approved_by"),
-            "reorder_summary":        resumed_state.get("reorder_summary"),
-            "pos_raised":             resumed_state.get("pos_raised", []),
-            "quote":                  resumed_state.get("quote"),
-            "oem_quote":              resumed_state.get("oem_quote"),
-            "aftermarket_quote":      resumed_state.get("aftermarket_quote"),
-            "is_ev_job":              resumed_state.get("is_ev_job"),
-            "recall_action_required": resumed_state.get("recall_action_required"),
-            "error":                  resumed_state.get("error"),
-            "total_elapsed":          0,
-        }
-
-        # Pipeline resumed and completed — clear HITL pending, store final result
-        st.session_state["hitl_pending"] = False
-        st.session_state["hitl_event"]   = None
-        st.session_state["final_event"]  = final_event
-
-        st.success(f"Supervisor review accepted — pipeline resumed successfully for {ro_id}")
-
+    # ── RESULTS (normal pipeline completion, no HITL) ─────────────────────
+    final_event = st.session_state.get("final_event")
     if not final_event:
         return
 
-    # ── RESULTS ───────────────────────────────────────────────────────────
     if final_event.get("error"):
         st.markdown(f'<div class="alert alert-danger">✗ {final_event["error"]}</div>',
                     unsafe_allow_html=True)
