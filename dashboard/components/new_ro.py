@@ -348,29 +348,32 @@ def render_new_ro():
         supervisor_id = st.text_input(
             "Supervisor ID",
             value="SUP-001",
-            key="hitl_supervisor_id"
+            key="hitl_supervisor_id",
         )
         pin = st.text_input(
             "Supervisor PIN",
             type="password",
-            key="hitl_pin"
+            key="hitl_pin",
         )
         refined = st.text_area(
             "Supervisor finding / diagnosis",
             placeholder="e.g. battery not working; car not getting started",
             height=90,
-            key="hitl_refined"
+            key="hitl_refined",
         )
         submit_review = st.button(
             "▶  Resume Pipeline",
             key="hitl_submit",
-            use_container_width=True
+            use_container_width=True,
         )
 
         if not submit_review:
             # Still waiting for supervisor input — show form and stop
             return
-       
+
+        pin     = st.session_state.get("hitl_pin", "")
+        refined = st.session_state.get("hitl_refined", "")
+
         if not pin:
             st.error("Supervisor PIN is required")
             return
