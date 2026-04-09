@@ -420,17 +420,10 @@ def build_graph(use_memory_checkpointer: bool = True):
     else:
         # PostgreSQL checkpointer for production HITL support
         try:
-            from psycopg_pool import ConnectionPool
             from langgraph.checkpoint.postgres import PostgresSaver
-            pool = ConnectionPool(
-                DATABASE_URL,
-                max_size=5,
-                kwargs={"autocommit": True, "prepare_threshold": 0},
-                open=True,
-            )
-            checkpointer = PostgresSaver(pool)
-        except Exception as e:
-            print(f"[WARN] PostgresSaver unavailable ({e}), falling back to MemorySaver")
+            checkpointer = PostgresSaver.from_conn_string(DATABASE_URL)
+        except Exception:
+            # Fall back to memory if postgres checkpointer unavailable
             checkpointer = MemorySaver()
 
     compiled = graph.compile(checkpointer=checkpointer)
@@ -833,37 +826,83 @@ def resume_intake_hitl(
     """
     Resumes an intake-HITL paused pipeline with supervisor input.
 
-    Called from dashboard when supervisor submits the review form.
+    Since stream_pipeline runs agents manually (not via graph.invoke),
+    no LangGraph checkpoint exists for the paused state. Instead, we
+    look up the original RO from the database to get the VIN and
+    complaint, then re-run the full pipeline using the supervisor's
+    override as the updated complaint text.
 
     Args:
-        ro_id:                      RO ID of the paused pipeline
-        supervisor_id:              ID of the supervisor making decision
-        supervisor_parts:           Part numbers selected from catalog
-        supervisor_custom_materials: [{"description": "Silver paint", "cost": 3500}]
-        supervisor_labor_description: Manual labor description
-        supervisor_labor_hours:     Estimated hours
-        supervisor_labor_rate:      Hourly rate (uses standard if None)
-        inspection_only:            True = diagnostic quote, no parts
-        supervisor_notes:           Any additional notes
+        ro_id:                       RO ID of the paused pipeline
+        supervisor_id:               ID of the supervisor making decision
+        supervisor_complaint_override: Supervisor's diagnosis/finding
+        supervisor_notes:            Any additional notes
 
     Returns:
         Final pipeline state after completion
     """
+    from database.connection import get_session
+    from database.models import RepairOrder
+
+    # Look up original RO to get VIN and customer_id
+    with get_session() as db:
+        ro = db.query(RepairOrder).filter(RepairOrder.ro_id == ro_id).first()
+        if not ro:
+            raise ValueError(f"Repair order {ro_id} not found in database")
+        vin         = ro.vin
+        customer_id = ro.customer_id
+
+    # Use supervisor's override as the updated complaint
+    updated_complaint = supervisor_complaint_override or ro.complaint_text
+
+    # Build the full initial state with supervisor overrides
+    initial_state: CONDUITState = {
+        "ro_id":          ro_id,
+        "vin":            vin,
+        "complaint_text": updated_complaint,
+        "customer_id":    str(customer_id) if customer_id else None,
+
+        # Supervisor override fields
+        "supervisor_override":        True,
+        "supervisor_id":              supervisor_id,
+        "supervisor_parts":           supervisor_parts or [],
+        "supervisor_custom_materials": supervisor_custom_materials or [],
+        "supervisor_labor_description": supervisor_labor_description,
+        "supervisor_labor_hours":     supervisor_labor_hours,
+        "supervisor_labor_rate":      supervisor_labor_rate,
+        "inspection_only":            inspection_only,
+        "supervisor_notes":           supervisor_notes,
+        "supervisor_complaint_override": supervisor_complaint_override,
+
+        # Initialise all required fields
+        "recall_flags":             [],
+        "retrieved_parts_context":  [],
+        "required_parts":           [],
+        "recommended_labor_codes":  [],
+        "reserved_parts":           [],
+        "unavailable_parts":        [],
+        "reorder_needed":           [],
+        "pos_raised":               [],
+        "inventory_check":          {},
+        "recall_action_required":   False,
+        "ev_safety_protocol":       False,
+        "is_ev_job":                False,
+        "parts_available":          True,
+        "intake_confidence":        0.0,
+        "discount_rate":            0.0,
+        "human_approved":           False,
+        "hitl_triggered":           True,
+        "intake_hitl_triggered":    True,
+        "error":                    None,
+        "current_agent":            None,
+    }
+
+    # Run the full pipeline from intake using the supervisor's complaint
     graph  = get_graph()
-    config = get_thread_config(ro_id)
+    config = get_thread_config(f"{ro_id}-resume")
 
     result = graph.invoke(
-        input={
-            "supervisor_id":              supervisor_id,
-            "supervisor_parts":           supervisor_parts or [],
-            "supervisor_custom_materials": supervisor_custom_materials or [],
-            "supervisor_labor_description": supervisor_labor_description,
-            "supervisor_labor_hours":     supervisor_labor_hours,
-            "supervisor_labor_rate":      supervisor_labor_rate,
-            "inspection_only":            inspection_only,
-            "supervisor_notes":           supervisor_notes,
-            "supervisor_complaint_override": supervisor_complaint_override,
-        },
+        input=initial_state,
         config=config,
     )
 
