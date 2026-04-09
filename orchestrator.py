@@ -420,10 +420,17 @@ def build_graph(use_memory_checkpointer: bool = True):
     else:
         # PostgreSQL checkpointer for production HITL support
         try:
+            from psycopg_pool import ConnectionPool
             from langgraph.checkpoint.postgres import PostgresSaver
-            checkpointer = PostgresSaver.from_conn_string(DATABASE_URL)
-        except Exception:
-            # Fall back to memory if postgres checkpointer unavailable
+            pool = ConnectionPool(
+                DATABASE_URL,
+                max_size=5,
+                kwargs={"autocommit": True, "prepare_threshold": 0},
+                open=True,
+            )
+            checkpointer = PostgresSaver(pool)
+        except Exception as e:
+            print(f"[WARN] PostgresSaver unavailable ({e}), falling back to MemorySaver")
             checkpointer = MemorySaver()
 
     compiled = graph.compile(checkpointer=checkpointer)
