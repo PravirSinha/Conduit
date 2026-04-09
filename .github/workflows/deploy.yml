@@ -70,24 +70,7 @@ jobs:
             --allow-unauthenticated \
             --add-cloudsql-instances=${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:conduit-db \
             --port=8000 \
-            --set-env-vars="ENVIRONMENT=production" \
-            --set-env-vars="LOG_LEVEL=INFO" \
-            --set-env-vars="OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" \
-            --set-env-vars="OPENAI_MODEL_NAME=gpt-4o" \
-            --set-env-vars="PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}" \
-            --set-env-vars="PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}" \
-            --set-env-vars="DATABASE_URL=postgresql://conduit_user:conduit_pass@/conduit?host=/cloudsql/conduit-492602:asia-south1:conduit-db" \
-            --set-env-vars="LANGCHAIN_TRACING_V2=${{ secrets.LANGCHAIN_TRACING_V2 }}" \
-            --set-env-vars="LANGCHAIN_API_KEY=${{ secrets.LANGCHAIN_API_KEY }}" \
-            --set-env-vars="LANGCHAIN_PROJECT=${{ secrets.LANGCHAIN_PROJECT }}" \
-            --set-env-vars="LANGSMITH_API_KEY=${{ secrets.LANGSMITH_API_KEY }}" \
-            --set-env-vars="LANGSMITH_ENDPOINT=${{ secrets.LANGSMITH_ENDPOINT }}" \
-            --set-env-vars="LANGSMITH_PROJECT=${{ secrets.LANGSMITH_PROJECT }}" \
-            --set-env-vars="INTAKE_HITL_ENABLED=${{ secrets.INTAKE_HITL_ENABLED }}" \
-            --set-env-vars="TRANSACTION_HITL_ENABLED=${{ secrets.TRANSACTION_HITL_ENABLED }}" \
-            --set-env-vars="HITL_ENABLED=${{ secrets.HITL_ENABLED }}" \
-            --set-env-vars="ADVISOR_PIN=${{ secrets.ADVISOR_PIN }}" \
-            --set-env-vars="AUTO_APPROVE_THRESHOLD=50000"
+            --set-env-vars="ENVIRONMENT=production,LOG_LEVEL=INFO,OPENAI_MODEL_NAME=gpt-4o,AUTO_APPROVE_THRESHOLD=50000,OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }},PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }},DATABASE_URL=postgresql://conduit_user:conduit_pass@/conduit?host=/cloudsql/conduit-492602:asia-south1:conduit-db,LANGCHAIN_TRACING_V2=${{ secrets.LANGCHAIN_TRACING_V2 }},LANGCHAIN_API_KEY=${{ secrets.LANGCHAIN_API_KEY }},LANGCHAIN_PROJECT=${{ secrets.LANGCHAIN_PROJECT }},LANGSMITH_API_KEY=${{ secrets.LANGSMITH_API_KEY }},LANGSMITH_ENDPOINT=${{ secrets.LANGSMITH_ENDPOINT }},LANGSMITH_PROJECT=${{ secrets.LANGSMITH_PROJECT }},INTAKE_HITL_ENABLED=${{ secrets.INTAKE_HITL_ENABLED }},TRANSACTION_HITL_ENABLED=${{ secrets.TRANSACTION_HITL_ENABLED }},HITL_ENABLED=${{ secrets.HITL_ENABLED }},ADVISOR_PIN=${{ secrets.ADVISOR_PIN }}"
 
       # ── DEPLOY DASHBOARD TO CLOUD RUN ────────────────────────────────────
       - name: Deploy dashboard to Cloud Run
@@ -101,12 +84,4 @@ jobs:
             --allow-unauthenticated \
             --port=8501 \
             --min-instances=1 \
-            --set-env-vars="API_URL=${{ env.BACKEND_URL }}" \
-            --set-env-vars="INTAKE_HITL_ENABLED=${{ secrets.INTAKE_HITL_ENABLED }}" \
-            --set-env-vars="TRANSACTION_HITL_ENABLED=${{ secrets.TRANSACTION_HITL_ENABLED }}" \
-            --set-env-vars="HITL_ENABLED=${{ secrets.HITL_ENABLED }}" \
-            --set-env-vars="ADVISOR_PIN=${{ secrets.ADVISOR_PIN }}" \
-            --set-env-vars="OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" \
-            --set-env-vars="PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}" \
-            --set-env-vars="PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }}" \
-            --set-env-vars="DATABASE_URL=postgresql://conduit_user:conduit_pass@/conduit?host=/cloudsql/conduit-492602:asia-south1:conduit-db"
+            --set-env-vars="API_URL=${{ env.BACKEND_URL }},ADVISOR_PIN=${{ secrets.ADVISOR_PIN }},OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }},PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }},PINECONE_INDEX_NAME=${{ secrets.PINECONE_INDEX_NAME }},DATABASE_URL=postgresql://conduit_user:conduit_pass@/conduit?host=/cloudsql/conduit-492602:asia-south1:conduit-db,INTAKE_HITL_ENABLED=${{ secrets.INTAKE_HITL_ENABLED }},TRANSACTION_HITL_ENABLED=${{ secrets.TRANSACTION_HITL_ENABLED }},HITL_ENABLED=${{ secrets.HITL_ENABLED }}"
