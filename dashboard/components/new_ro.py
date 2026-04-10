@@ -658,12 +658,6 @@ def render_new_ro():
                     ✓ {p}
                 </div>""", unsafe_allow_html=True)
 
-    # Reorder alert
-    if final_event.get("reorder_summary"):
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown(f'<div class="alert alert-warning">🚚 {final_event["reorder_summary"]}</div>',
-                    unsafe_allow_html=True)
-
     # PO breakdown — collapsed by default so it doesn't dominate the quote
     pos_raised = final_event.get("pos_raised") or []
     if pos_raised:
@@ -681,7 +675,9 @@ def render_new_ro():
 
         if rows:
             st.markdown("<br>", unsafe_allow_html=True)
-            with st.expander(f"Parts Replenishment — {len(pos_raised)} PO(s) raised (wholesale restocking, not customer quote)"):
+            with st.expander(f"🚚 Parts Replenishment — {len(pos_raised)} PO(s) raised (wholesale restocking, not customer quote)"):
+                if final_event.get("reorder_summary"):
+                    st.info(final_event["reorder_summary"], icon="🚚")
                 st.caption("PO totals reflect proactive inventory replenishment (wholesale unit cost × bulk order quantity), not the customer quote.")
                 st.dataframe(rows, use_container_width=True, hide_index=True)
 

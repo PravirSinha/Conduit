@@ -268,6 +268,7 @@ Use these as ready-made `complaint_text` examples for demos/interviews.
 ### Cases where HITL SHOULD be required
 
 **Intake HITL (supervisor review)** — ambiguous / unknown / no parts:
+- "AC not working, cabin not cooling" (AC Compressor failure, needs replacement)
 - "Rear bumper dent and repaint required. Bodywork + paint."
 - "Water leakage inside cabin during rain. Need diagnosis."
 - "Rattle noise sometimes from dashboard area, intermittent. Not sure when it happens."
