@@ -291,6 +291,14 @@ def _render_hitl_supervisor_form():
     if not ro_id:
         st.error("RO ID missing — cannot submit review")
         return
+    estimated_cost_val = st.session_state.get("hitl_estimated_cost", 0)
+    if estimated_cost_val == 0:
+        st.warning(
+            "Estimated cost is ₹0. If this is a bodywork or custom job with no catalog parts, "
+            "please enter an estimated cost above to generate a quote.",
+            icon="⚠️"
+        )
+        return
 
     estimated_cost_val = st.session_state.get("hitl_estimated_cost", 0)
     custom_materials = []

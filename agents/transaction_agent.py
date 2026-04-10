@@ -279,16 +279,18 @@ def validate_transaction_output(state: dict) -> tuple:
     if not state.get("quote_id"):
         return False, "No quote_id — cannot process transaction"
 
-    # Must have reserved parts or be labor-only
-    reserved = state.get("reserved_parts", [])
-    fault    = state.get("fault_classification", "")
+    # Must have reserved parts or be labor-only or supervisor override with custom materials
+    reserved             = state.get("reserved_parts", [])
+    fault                = state.get("fault_classification", "")
+    supervisor_override  = state.get("supervisor_override", False)
+    custom_materials     = state.get("supervisor_custom_materials") or []
 
-    if not reserved and fault not in ["ROUTINE_SERVICE"]:
+    if not reserved and fault not in ["ROUTINE_SERVICE"] and not supervisor_override and not custom_materials:
         return False, "No reserved parts for non-routine job"
 
     # Quote must exist with valid total
     quote_total = (state.get("quote") or {}).get("total_amount", 0)
-    if quote_total <= 0:
+    if quote_total <= 0 and not supervisor_override:
         return False, f"Invalid quote total: {quote_total}"
 
     return True, "OK"
