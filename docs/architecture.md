@@ -75,7 +75,7 @@ stateDiagram-v2
 
     TransactionAgent --> ReplenishmentAgent : auto_approved\n(standard jobs)
 
-    ReplenishmentAgent --> [*] : pos_raised[]\nro_status = COMPLETED
+    ReplenishmentAgent --> [*] : pos_raised[]\nro_status = COMPLETE
 
     note right of IntakeAgent
         GPT-4o classifies:
@@ -159,7 +159,7 @@ erDiagram
 
 ```mermaid
 graph LR
-    subgraph FREE["Free Tier — $0.00 — Fast deterministic checks"]
+    subgraph FREE["Free Tier — $0.00 — 87 deterministic tests on every CI run"]
         G1[Intake Guardrails<br/>18 tests]
         G2[Quoting Guardrails<br/>13 tests]
         G3[Output Validators<br/>18 tests]
@@ -169,17 +169,17 @@ graph LR
         C4[Replenishment Agent<br/>9 tests]
     end
 
-    subgraph PAID["LLM Tier — ~$1.05 — Before demos/releases"]
+    subgraph PAID["LLM Tier — ~$1.10 — Before demos/releases"]
         L1[Intake Agent LLM<br/>~$0.20<br/>Classification accuracy]
         L2[RAG Retrieval<br/>~$0.05<br/>Pinecone precision/recall]
-        L3[Full Pipeline<br/>~$0.80<br/>End-to-end quality]
+        L3[LLM-as-Judge<br/>~$0.05<br/>Diagnosis quality + hallucination check]
+        L4[Full Pipeline<br/>~$0.80<br/>End-to-end quality]
     end
 
     subgraph REPORT["Reports"]
         R1[evals/reports/latest/summary.json]
         R1b[docs/eval_results.json<br/>Dashboard snapshot]
         R2[LangSmith Dashboard]
-        R3[DeepEval — Confident AI]
     end
 
     FREE --> R1

@@ -14,10 +14,9 @@
 [![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://streamlit.io)
 [![Docker](https://img.shields.io/badge/Docker-Containerised-2496ED?style=flat-square&logo=docker&logoColor=white)](https://docker.com)
 [![LangSmith](https://img.shields.io/badge/LangSmith-Observability-1C3C3C?style=flat-square&logo=langchain&logoColor=white)](https://smith.langchain.com)
-[![DeepEval](https://img.shields.io/badge/DeepEval-LLM_Evals-7C3AED?style=flat-square&logo=checkmarx&logoColor=white)](https://docs.confident-ai.com)
 [![GCP](https://img.shields.io/badge/GCP-Cloud_Run_+_Cloud_SQL-4285F4?style=flat-square&logo=googlecloud&logoColor=white)](https://cloud.google.com)
 [![Tests](https://img.shields.io/badge/Tests-159_passing-22C55E?style=flat-square&logo=pytest&logoColor=white)](./tests)
-[![Evals](https://img.shields.io/badge/Evals-87_passing-22C55E?style=flat-square&logo=checkmarx&logoColor=white)](./evals)
+[![Evals](https://img.shields.io/badge/Evals-10%2F10_modules_passing-22C55E?style=flat-square&logo=pytest&logoColor=white)](./evals)
 [![CI](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)](./github/workflows)
 
 </div>
@@ -109,10 +108,9 @@ CONDUIT supports **two HITL gates** with independent toggles:
         - Triggers when: EV jobs, recall jobs, high-value quotes (above threshold), or low-confidence intake
         - Threshold is configurable via `AUTO_APPROVE_THRESHOLD` (default ₹50,000)
 
-Feature flags:
-- `INTAKE_HITL_ENABLED` (preferred)
-- `TRANSACTION_HITL_ENABLED` (preferred)
-- `HITL_ENABLED` (legacy alias; enables both when set)
+Feature flags (set via GitHub Secrets — deploy workflow picks up changes automatically):
+- `INTAKE_HITL_ENABLED` — controls the Intake ambiguity pause + supervisor override
+- `TRANSACTION_HITL_ENABLED` — controls the quote approval pause (EV, recall, high-value)
 
 ### Financial Accuracy
 - 18% GST calculated on post-discount amount (regulatory compliance)
@@ -445,10 +443,14 @@ docker-compose up --build
 # Full test suite
 pytest tests/ -v
 
-# Free evals only ($0.00)
+# Free evals only ($0.00) — guardrails + component logic
 python evals/run_evals.py --free
 
-# Full eval suite (~$1.00)
+# Without full pipeline — recommended before demo (~$0.30)
+# Includes: LLM accuracy, RAG Precision/Recall, LLM-as-judge
+python evals/run_evals.py --no-pipeline
+
+# Full eval suite including end-to-end pipeline (~$1.10)
 python evals/run_evals.py
 ```
 
@@ -465,9 +467,13 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/conduit
 
 # App Config
 ENVIRONMENT=development
-HITL_ENABLED=false          # true = pause for human approval
-AUTO_APPROVE_THRESHOLD=50000  # ₹ above which HITL triggers
+INTAKE_HITL_ENABLED=false       # true = pause for supervisor review on ambiguous complaints
+TRANSACTION_HITL_ENABLED=false  # true = pause for advisor approval on EV/high-value jobs
+AUTO_APPROVE_THRESHOLD=50000    # ₹ above which transaction HITL triggers
 LOG_LEVEL=INFO
+
+# To toggle HITL without redeploying:
+# gcloud run services update conduit --region=asia-south1 --update-env-vars="INTAKE_HITL_ENABLED=true"
 
 # Observability (optional)
 LANGCHAIN_TRACING_V2=false
@@ -525,7 +531,7 @@ The intake agent queries PostgreSQL for vehicle and customer context, Pinecone f
 A 45-second pipeline without feedback looks broken. SSE streaming of intermediate agent states — not just the final result — gave users visibility into what the system was doing and why. The choice of SSE over WebSockets simplified the server stack significantly since the communication is strictly unidirectional.
 
 **Eval cost discipline compounds across projects.**  
-Running the full LLM eval suite on every push would cost ~$30/month. Tiering evals — deterministic guardrails on every CI run at $0.00, LLM-judge quality evals manually before each deploy at ~$1.00 — keeps the total well under $10 for the entire project lifetime. This discipline matters more as you add more AI products sharing the same API budget.
+Running the full LLM eval suite on every push would cost ~$30/month. Tiering evals — deterministic guardrails on every CI run at $0.00, LLM-judge quality evals manually before each deploy at ~$0.30 (LLM accuracy + RAG + LLM-as-judge) — keeps the total well under $10 for the entire project lifetime. This discipline matters more as you add more AI products sharing the same API budget.
 
 ---
 
@@ -545,8 +551,8 @@ Currently the replenishment agent raises POs reactively when stock falls below r
 **Agent Memory Across Sessions**  
 Returning customers with known fault history, vehicle quirks, or loyalty status currently require re-entering context. Persisting a lightweight customer and vehicle profile in PostgreSQL and injecting it into the intake agent's context window would make the system progressively more accurate for repeat customers.
 
-**DeepEval Online Evaluation — Sampling Mode**  
-Rather than running quality evals only at deploy time, a low-cost enhancement is to run DeepEval on a 5% random sample of production repair orders — catching regression in classification quality without the cost of evaluating every request.
+**Online Eval Sampling**  
+Rather than running quality evals only at deploy time, a low-cost enhancement is to run LLM-as-judge on a 5% random sample of production repair orders — catching regression in classification quality continuously without the cost of evaluating every request.
 
 ---
 
