@@ -635,17 +635,30 @@ def run_pipeline_streaming(
                     not required_parts or
                     fault == "UNKNOWN"
                 ):
-                    if fault == "UNKNOWN" or not required_parts:
+                    # Build a meaningful message for the service advisor
+                    if fault == "UNKNOWN" and not required_parts:
                         msg = (
-                            "Unknown fault type — supervisor diagnosis required"
+                            "Complaint requires manual inspection — system could not identify fault type or parts. Please provide your diagnosis."
                             if INTAKE_HITL_ENABLED
-                            else "Unknown fault type — human inspection recommended"
+                            else "Complaint requires manual inspection — system could not identify fault type or parts."
+                        )
+                    elif fault == "UNKNOWN":
+                        msg = (
+                            "Fault type unclear — complaint is ambiguous. Supervisor diagnosis needed to proceed."
+                            if INTAKE_HITL_ENABLED
+                            else "Fault type unclear — complaint is ambiguous. Manual inspection recommended."
+                        )
+                    elif not required_parts:
+                        msg = (
+                            "No parts identified — complaint may require bodywork, diagnostics, or custom labour. Please specify."
+                            if INTAKE_HITL_ENABLED
+                            else "No parts identified — complaint may require bodywork, diagnostics, or custom labour."
                         )
                     else:
                         msg = (
-                            f"Low confidence ({confidence:.0%}) — supervisor review required"
+                            f"Low intake confidence ({confidence:.0%}) — supervisor review recommended before proceeding."
                             if INTAKE_HITL_ENABLED
-                            else f"Low confidence ({confidence:.0%}) — human inspection recommended"
+                            else f"Low intake confidence ({confidence:.0%}) — manual inspection recommended."
                         )
                     pending_hitl_required = {
                         "event":   "hitl_required",

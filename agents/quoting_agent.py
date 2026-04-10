@@ -239,10 +239,28 @@ def run_quoting_agent(state: dict) -> dict:
             recall_action_required = recall_action_required,
         )
 
+        # ── STEP 2b: HANDLE SUPERVISOR CUSTOM MATERIALS ──────────────────
+        # When supervisor provides custom materials (bodywork, diagnostics etc.)
+        # and no catalog parts were reserved, build line items from custom materials
+        supervisor_custom_materials = state.get("supervisor_custom_materials") or []
+        custom_line_items = []
+        if supervisor_custom_materials and not reserved_parts:
+            for mat in supervisor_custom_materials:
+                cost = float(mat.get("cost", 0))
+                if cost > 0:
+                    custom_line_items.append({
+                        "type":        "CUSTOM",
+                        "description": mat.get("description", "Custom material/service"),
+                        "quantity":    1,
+                        "unit_cost":   cost,
+                        "sell_price":  cost,
+                        "subtotal":    cost,
+                    })
+
         # ── STEP 3: BUILD OEM QUOTE ────────────────────────────────────────
         oem_parts_items  = build_parts_line_items(reserved_parts, use_oem=True)
         labor_items      = build_labor_line_items(labor_operations)
-        oem_line_items   = oem_parts_items + labor_items
+        oem_line_items   = oem_parts_items + labor_items + custom_line_items
         oem_totals       = calculate_totals(oem_line_items, discount_rate)
 
         oem_quote = {

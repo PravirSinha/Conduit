@@ -255,6 +255,14 @@ def _render_hitl_supervisor_form():
         height=120,
         key="hitl_refined",
     )
+    estimated_cost = st.number_input(
+        "Estimated job cost (₹) — required for bodywork / custom jobs",
+        min_value=0,
+        value=0,
+        step=500,
+        key="hitl_estimated_cost",
+        help="Enter the estimated cost if no parts are in the catalog (e.g. bodywork, painting, diagnostics)",
+    )
 
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -284,12 +292,21 @@ def _render_hitl_supervisor_form():
         st.error("RO ID missing — cannot submit review")
         return
 
+    estimated_cost_val = st.session_state.get("hitl_estimated_cost", 0)
+    custom_materials = []
+    if estimated_cost_val and estimated_cost_val > 0:
+        custom_materials = [{
+            "description": refined_val.strip(),
+            "cost": float(estimated_cost_val)
+        }]
+
     with st.spinner("Resuming pipeline with supervisor input..."):
         resp = submit_intake_review(ro_id, {
             "supervisor_id":                 sup_id.strip() or "SUP-001",
             "pin":                           pin_val,
             "supervisor_complaint_override":  refined_val.strip(),
             "supervisor_notes":              refined_val.strip(),
+            "supervisor_custom_materials":   custom_materials,
         })
 
     if not resp:
@@ -498,8 +515,7 @@ def render_new_ro():
                         hitl_event = event
                         st.session_state["hitl_event"]   = event
                         st.session_state["hitl_pending"] = True
-                        status_ph.warning(event.get("message") or "Human inspection required", icon="🛑")
-                        break
+                        st.rerun()
 
                     elif etype == "pipeline_complete":
                         final_event = event
