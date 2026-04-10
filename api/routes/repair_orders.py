@@ -358,7 +358,7 @@ def list_repair_orders(
         query = query.filter(RepairOrder.status == status.upper())
 
     ros = query.order_by(
-        RepairOrder.created_at.desc()
+        RepairOrder.created_at.desc().nulls_last()
     ).offset(offset).limit(limit).all()
 
     return [
@@ -386,7 +386,7 @@ def list_pending_approval(db: Session = Depends(get_db)):
         RepairOrder.status.in_(["QUOTED", "PENDING_INSPECTION"])
     ).distinct(RepairOrder.ro_id).order_by(
         RepairOrder.ro_id,
-        RepairOrder.created_at.desc()
+        RepairOrder.created_at.desc().nulls_last()
     ).all()
 
     return [

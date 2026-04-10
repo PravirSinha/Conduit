@@ -271,6 +271,10 @@ def route_after_intake(state: CONDUITState) -> str:
     required_parts = state.get("required_parts", [])
     fault         = state.get("fault_classification", "UNKNOWN")
 
+    # Skip HITL if this is a supervisor-overridden resume
+    if state.get("supervisor_override"):
+        return "inventory"
+
     # Trigger HITL for ambiguous or unidentified cases
     if confidence < 0.70:
         return "intake_hitl"
@@ -631,11 +635,18 @@ def run_pipeline_streaming(
                     not required_parts or
                     fault == "UNKNOWN"
                 ):
-                    msg = (
-                        f"Low confidence ({confidence:.0%}) — human inspection recommended"
-                        if not INTAKE_HITL_ENABLED
-                        else f"Low confidence ({confidence:.0%}) — supervisor review required"
-                    )
+                    if fault == "UNKNOWN" or not required_parts:
+                        msg = (
+                            "Unknown fault type — supervisor diagnosis required"
+                            if INTAKE_HITL_ENABLED
+                            else "Unknown fault type — human inspection recommended"
+                        )
+                    else:
+                        msg = (
+                            f"Low confidence ({confidence:.0%}) — supervisor review required"
+                            if INTAKE_HITL_ENABLED
+                            else f"Low confidence ({confidence:.0%}) — human inspection recommended"
+                        )
                     pending_hitl_required = {
                         "event":   "hitl_required",
                         "agent":   "intake_hitl",
@@ -834,19 +845,9 @@ def resume_intake_hitl(
     Resumes an intake-HITL paused pipeline with supervisor input.
 
     Since stream_pipeline runs agents manually (not via graph.invoke),
-    no LangGraph checkpoint exists for the paused state. Instead, we
-    look up the original RO from the database to get the VIN and
-    complaint, then re-run the full pipeline using the supervisor's
-    override as the updated complaint text.
-
-    Args:
-        ro_id:                       RO ID of the paused pipeline
-        supervisor_id:               ID of the supervisor making decision
-        supervisor_complaint_override: Supervisor's diagnosis/finding
-        supervisor_notes:            Any additional notes
-
-    Returns:
-        Final pipeline state after completion
+    we look up the original RO from the database to get the VIN,
+    then re-run the full pipeline using the supervisor's override as
+    the updated complaint. supervisor_override=True skips HITL re-trigger.
     """
     from database.connection import get_session
     from database.models import RepairOrder
@@ -862,14 +863,14 @@ def resume_intake_hitl(
     # Use supervisor's override as the updated complaint
     updated_complaint = supervisor_complaint_override or ro.complaint_text
 
-    # Build the full initial state with supervisor overrides
+    # Build full initial state with supervisor override flag
     initial_state: CONDUITState = {
         "ro_id":          ro_id,
         "vin":            vin,
         "complaint_text": updated_complaint,
         "customer_id":    str(customer_id) if customer_id else None,
 
-        # Supervisor override fields
+        # Supervisor override fields — tells route_after_intake to skip HITL
         "supervisor_override":        True,
         "supervisor_id":              supervisor_id,
         "supervisor_parts":           supervisor_parts or [],
@@ -904,7 +905,6 @@ def resume_intake_hitl(
         "current_agent":            None,
     }
 
-    # Run the full pipeline from intake using the supervisor's complaint
     graph  = get_graph()
     config = get_thread_config(f"{ro_id}-resume")
 
@@ -913,7 +913,47 @@ def resume_intake_hitl(
         config=config,
     )
 
-    return result
+    # Build pos_min for dashboard display
+    pos_min = []
+    for po in result.get("pos_raised", []) or []:
+        parts = []
+        for p in (po.get("parts") or []):
+            parts.append({
+                "part_number":    p.get("part_number"),
+                "description":    p.get("description"),
+                "order_quantity": p.get("order_quantity"),
+                "unit_cost":      p.get("unit_cost"),
+                "order_value":    p.get("order_value"),
+            })
+        pos_min.append({
+            "po_id":         po.get("po_id"),
+            "supplier_id":   po.get("supplier_id"),
+            "supplier_name": po.get("supplier_name"),
+            "total_value":   po.get("total_value"),
+            "status":        po.get("status"),
+            "parts":         parts,
+        })
+
+    # Return in same format as pipeline_complete event so dashboard renders correctly
+    return {
+        "ro_id":                  ro_id,
+        "fault_classification":   result.get("fault_classification"),
+        "urgency":                result.get("urgency"),
+        "intake_confidence":      result.get("intake_confidence"),
+        "required_parts":         result.get("required_parts", []),
+        "parts_available":        result.get("parts_available"),
+        "quote_id":               result.get("quote_id"),
+        "transaction_status":     result.get("transaction_status"),
+        "approved_by":            result.get("approved_by"),
+        "reorder_summary":        result.get("reorder_summary"),
+        "pos_raised":             pos_min,
+        "quote":                  result.get("quote"),
+        "oem_quote":              result.get("oem_quote"),
+        "aftermarket_quote":      result.get("aftermarket_quote"),
+        "is_ev_job":              result.get("is_ev_job"),
+        "recall_action_required": result.get("recall_action_required"),
+        "error":                  result.get("error"),
+    }
 
 
 
