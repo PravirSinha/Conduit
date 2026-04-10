@@ -168,34 +168,43 @@ def _render_results(final_event, ro_id=None):
     quote = final_event.get("quote")
     if quote:
         st.markdown('<div class="section-header">Quote Summary</div>', unsafe_allow_html=True)
+
+        oem_total  = quote.get("total_amount", 0)
+        am         = final_event.get("aftermarket_quote")
+        am_total   = am.get("total_amount", 0) if am else 0
+        saving     = oem_total - am_total
+        line_items = quote.get("line_items", [])
+        parts_cost = sum(i.get("subtotal", 0) for i in line_items if i.get("type") in ["PART", "CUSTOM"])
+        labour_cost = sum(i.get("subtotal", 0) for i in line_items if i.get("type") == "LABOR")
+        show_am = am and am_total > 0 and saving > 0 and am_total >= oem_total * 0.55
+
         col_oem, col_am = st.columns(2)
         with col_oem:
+            parts_line  = f"Parts &nbsp;&nbsp;&nbsp;₹{parts_cost:,.0f}<br>" if parts_cost > 0 else ""
+            labour_line = f"Labour &nbsp;₹{labour_cost:,.0f}<br>" if labour_cost > 0 else ""
             st.markdown(f"""
             <div class="quote-card">
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
                             letter-spacing:0.1em;text-transform:uppercase;color:#64748b;margin-bottom:0.5rem;">
                     OEM Quote
                 </div>
-                <div class="quote-total">₹{quote.get('total_amount', 0):,.0f}</div>
+                <div class="quote-total">₹{oem_total:,.0f}</div>
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;
-                            color:#64748b;margin-top:0.5rem;line-height:1.8;">
-                    Subtotal &nbsp;₹{quote.get('subtotal', 0):,.0f}<br>
-                    Discount -₹{quote.get('discount_amount', 0):,.0f}<br>
+                            color:#64748b;margin-top:0.5rem;line-height:1.9;">
+                    {parts_line}{labour_line}Discount -₹{quote.get('discount_amount', 0):,.0f}<br>
                     GST 18% &nbsp;₹{quote.get('gst_amount', 0):,.0f}
                 </div>
             </div>""", unsafe_allow_html=True)
 
-        am = final_event.get("aftermarket_quote")
         with col_am:
-            if am:
-                saving = quote.get("total_amount", 0) - am.get("total_amount", 0)
+            if show_am:
                 st.markdown(f"""
                 <div class="quote-card" style="border-color:#1e3a5f;">
                     <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
                                 letter-spacing:0.1em;text-transform:uppercase;color:#64748b;margin-bottom:0.5rem;">
                         Aftermarket Option
                     </div>
-                    <div class="quote-total" style="color:#3b82f6;">₹{am.get('total_amount', 0):,.0f}</div>
+                    <div class="quote-total" style="color:#3b82f6;">₹{am_total:,.0f}</div>
                     <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;
                                 color:#22c55e;margin-top:0.5rem;">
                         Customer saves ₹{saving:,.0f}
@@ -572,35 +581,54 @@ def render_new_ro():
     quote = final_event.get("quote")
     if quote:
         st.markdown('<div class="section-header">Quote Summary</div>', unsafe_allow_html=True)
+
+        oem_total   = quote.get("total_amount", 0)
+        am          = final_event.get("aftermarket_quote")
+        am_total    = am.get("total_amount", 0) if am else 0
+        saving      = oem_total - am_total
+
+        # Build line item summary (parts cost + labour cost)
+        line_items   = quote.get("line_items", [])
+        parts_cost   = sum(i.get("subtotal", 0) for i in line_items if i.get("type") in ["PART", "CUSTOM"])
+        labour_cost  = sum(i.get("subtotal", 0) for i in line_items if i.get("type") == "LABOR")
+        labour_desc  = " + ".join(
+            i.get("description", "Labour") for i in line_items if i.get("type") == "LABOR"
+        ) or "Workshop labour"
+
+        # Show aftermarket only if it makes sense (saving > 5% of OEM and am > 60% of OEM)
+        show_am = (
+            am and am_total > 0 and saving > 0 and
+            am_total >= oem_total * 0.55
+        )
+
         col_oem, col_am = st.columns(2)
 
         with col_oem:
+            parts_line = f"Parts &nbsp;&nbsp;&nbsp;₹{parts_cost:,.0f}<br>" if parts_cost > 0 else ""
+            labour_line = f"Labour &nbsp;₹{labour_cost:,.0f}<br>" if labour_cost > 0 else ""
             st.markdown(f"""
             <div class="quote-card">
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
                             letter-spacing:0.1em;text-transform:uppercase;color:#64748b;margin-bottom:0.5rem;">
                     OEM Quote
                 </div>
-                <div class="quote-total">₹{quote.get('total_amount', 0):,.0f}</div>
+                <div class="quote-total">₹{oem_total:,.0f}</div>
                 <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;
-                            color:#64748b;margin-top:0.5rem;line-height:1.8;">
-                    Subtotal &nbsp;₹{quote.get('subtotal', 0):,.0f}<br>
-                    Discount -₹{quote.get('discount_amount', 0):,.0f}<br>
+                            color:#64748b;margin-top:0.5rem;line-height:1.9;">
+                    {parts_line}{labour_line}Discount -₹{quote.get('discount_amount', 0):,.0f}<br>
                     GST 18% &nbsp;₹{quote.get('gst_amount', 0):,.0f}
                 </div>
             </div>""", unsafe_allow_html=True)
 
-        am = final_event.get("aftermarket_quote")
         with col_am:
-            if am:
-                saving = quote.get("total_amount", 0) - am.get("total_amount", 0)
+            if show_am:
                 st.markdown(f"""
                 <div class="quote-card" style="border-color:#1e3a5f;">
                     <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
                                 letter-spacing:0.1em;text-transform:uppercase;color:#64748b;margin-bottom:0.5rem;">
                         Aftermarket Option
                     </div>
-                    <div class="quote-total" style="color:#3b82f6;">₹{am.get('total_amount', 0):,.0f}</div>
+                    <div class="quote-total" style="color:#3b82f6;">₹{am_total:,.0f}</div>
                     <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;
                                 color:#22c55e;margin-top:0.5rem;">
                         Customer saves ₹{saving:,.0f}
@@ -610,7 +638,7 @@ def render_new_ro():
                 st.markdown("""
                 <div class="quote-card" style="opacity:0.4;">
                     <div style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem;color:#64748b;">
-                        OEM only (EV or recall job)
+                        OEM parts only
                     </div>
                 </div>""", unsafe_allow_html=True)
 
@@ -636,7 +664,7 @@ def render_new_ro():
         st.markdown(f'<div class="alert alert-warning">🚚 {final_event["reorder_summary"]}</div>',
                     unsafe_allow_html=True)
 
-    # PO breakdown
+    # PO breakdown — collapsed by default so it doesn't dominate the quote
     pos_raised = final_event.get("pos_raised") or []
     if pos_raised:
         rows = []
@@ -653,9 +681,9 @@ def render_new_ro():
 
         if rows:
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown('<div class="section-header">Purchase Order Breakdown</div>', unsafe_allow_html=True)
-            st.caption("PO totals reflect proactive inventory replenishment (wholesale unit cost × bulk order quantity), not the customer quote.")
-            st.dataframe(rows, use_container_width=True, hide_index=True)
+            with st.expander(f"Parts Replenishment — {len(pos_raised)} PO(s) raised (wholesale restocking, not customer quote)"):
+                st.caption("PO totals reflect proactive inventory replenishment (wholesale unit cost × bulk order quantity), not the customer quote.")
+                st.dataframe(rows, use_container_width=True, hide_index=True)
 
     # Footer reference
     ro_id = final_event.get("ro_id") or st.session_state.get("hitl_ro_id")
