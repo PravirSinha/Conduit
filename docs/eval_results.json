@@ -1,13 +1,13 @@
 {
-  "run_at": "2026-03-28T04:08:31.969011Z",
-  "total_elapsed": 29.0,
+  "run_at": "2026-04-10T12:03:50.971343Z",
+  "total_elapsed": 498.4,
   "all_passed": true,
-  "passed": 7,
+  "passed": 10,
   "failed": 0,
-  "total": 7,
+  "total": 10,
   "meta": {
-    "git_sha": "e5e0a129893caab69cb7b5f3be090f4cf2a16286",
-    "git_sha_short": "e5e0a12",
+    "git_sha": "1477f4c2e789b6caadbb3eb8fcc46de12b1a77cf",
+    "git_sha_short": "1477f4c",
     "openai_model": "gpt-4o",
     "datasets_dir": "evals/datasets",
     "datasets_files": [
@@ -29,13 +29,13 @@
     {
       "id": "intake_classification_accuracy",
       "label": "Intake Accuracy",
-      "value": null,
+      "value": 80.0,
       "unit": "%"
     },
     {
       "id": "rag_recall_at_5",
       "label": "RAG Recall@5",
-      "value": null,
+      "value": 100.0,
       "unit": "%"
     }
   ],
@@ -67,6 +67,76 @@
       "passed": 4,
       "failed": 0,
       "pass_rate": 100.0
+    },
+    "Fault Classification Accuracy": {
+      "eval": "Fault Classification Accuracy",
+      "total": 10,
+      "passed": 8,
+      "failed": 2,
+      "pass_rate": 80.0
+    },
+    "Urgency Accuracy": {
+      "eval": "Urgency Accuracy",
+      "total": 10,
+      "passed": 9,
+      "failed": 1,
+      "pass_rate": 90.0
+    },
+    "Confidence \u2014 Clear Complaints": {
+      "eval": "Confidence \u2014 Clear Complaints",
+      "total": 9,
+      "passed": 9,
+      "failed": 0,
+      "pass_rate": 100.0
+    },
+    "Parts Prefix Recall": {
+      "eval": "Parts Prefix Recall",
+      "total": 7,
+      "passed": 6,
+      "failed": 1,
+      "pass_rate": 85.7
+    },
+    "RAG Precision@5": {
+      "eval": "RAG Precision@5",
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "pass_rate": 100.0
+    },
+    "RAG Recall@5": {
+      "eval": "RAG Recall@5",
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "pass_rate": 100.0
+    },
+    "RAG Relevance Score": {
+      "eval": "RAG Relevance Score",
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "pass_rate": 100.0
+    },
+    "LLM Judge: Diagnosis Relevance": {
+      "eval": "LLM Judge: Diagnosis Relevance",
+      "total": 10,
+      "passed": 10,
+      "failed": 0,
+      "pass_rate": 100.0
+    },
+    "LLM Judge: Hallucination Check": {
+      "eval": "LLM Judge: Hallucination Check",
+      "total": 10,
+      "passed": 10,
+      "failed": 0,
+      "pass_rate": 100.0
+    },
+    "LLM Judge: Technician Clarity": {
+      "eval": "LLM Judge: Technician Clarity",
+      "total": 10,
+      "passed": 10,
+      "failed": 0,
+      "pass_rate": 100.0
     }
   },
   "modules": [
@@ -75,7 +145,7 @@
       "module": "guardrails/intake_guardrails.py",
       "cost": "$0.00",
       "passed": true,
-      "elapsed_s": 8.3,
+      "elapsed_s": 6.4,
       "returncode": 0
     },
     {
@@ -83,7 +153,7 @@
       "module": "guardrails/quoting_guardrails.py",
       "cost": "$0.00",
       "passed": true,
-      "elapsed_s": 3.7,
+      "elapsed_s": 7.2,
       "returncode": 0
     },
     {
@@ -91,7 +161,7 @@
       "module": "guardrails/output_validator.py",
       "cost": "$0.00",
       "passed": true,
-      "elapsed_s": 4.0,
+      "elapsed_s": 7.6,
       "returncode": 0
     },
     {
@@ -99,7 +169,7 @@
       "module": "component/eval_inventory_agent.py",
       "cost": "$0.00",
       "passed": true,
-      "elapsed_s": 3.1,
+      "elapsed_s": 6.2,
       "returncode": 0
     },
     {
@@ -107,7 +177,7 @@
       "module": "component/eval_quoting_agent.py",
       "cost": "$0.00",
       "passed": true,
-      "elapsed_s": 2.9,
+      "elapsed_s": 6.2,
       "returncode": 0
     },
     {
@@ -115,7 +185,7 @@
       "module": "component/eval_transaction_agent.py",
       "cost": "$0.00",
       "passed": true,
-      "elapsed_s": 3.7,
+      "elapsed_s": 8.2,
       "returncode": 0
     },
     {
@@ -123,7 +193,31 @@
       "module": "component/eval_replenishment_agent.py",
       "cost": "$0.00",
       "passed": true,
-      "elapsed_s": 3.2,
+      "elapsed_s": 6.3,
+      "returncode": 0
+    },
+    {
+      "label": "Intake Agent (LLM)",
+      "module": "component/eval_intake_agent.py",
+      "cost": "~$0.20",
+      "passed": true,
+      "elapsed_s": 135.2,
+      "returncode": 0
+    },
+    {
+      "label": "RAG Retrieval (Pinecone)",
+      "module": "rag/eval_rag_retrieval.py",
+      "cost": "~$0.05",
+      "passed": true,
+      "elapsed_s": 119.4,
+      "returncode": 0
+    },
+    {
+      "label": "LLM-as-Judge (Diagnosis)",
+      "module": "component/eval_llm_judge.py",
+      "cost": "~$0.05",
+      "passed": true,
+      "elapsed_s": 195.6,
       "returncode": 0
     }
   ]

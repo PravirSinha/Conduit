@@ -39,6 +39,7 @@ ALL_MODULES = [
     ("component/eval_replenishment_agent.py","Replenishment Agent",       "$0.00"),
     ("component/eval_intake_agent.py",     "Intake Agent (LLM)",          "~$0.20"),
     ("rag/eval_rag_retrieval.py",          "RAG Retrieval (Pinecone)",    "~$0.05"),
+    ("component/eval_llm_judge.py",        "LLM-as-Judge (Diagnosis)",   "~$0.05"),
     ("pipeline/eval_full_pipeline.py",     "Full Pipeline (end-to-end)", "~$0.80"),
 ]
 

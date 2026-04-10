@@ -473,7 +473,13 @@ def run_intake_agent(state: dict) -> dict:
             "intake_confidence":        classification.get("confidence", 0.0),
             "recall_action_required":   classification.get("recall_action_required", False),
             "technician_skill_required": classification.get("technician_skill_required"),
-            "ev_safety_protocol":       classification.get("ev_safety_protocol", False),
+            # Force ev_safety_protocol=True if vehicle is EV or fault is EV_SYSTEM,
+            # regardless of what the LLM returned — safety override.
+            "ev_safety_protocol":       (
+                classification.get("ev_safety_protocol", False) or
+                vehicle.get("is_ev", False) or
+                classification.get("fault_classification") == "EV_SYSTEM"
+            ),
             "intake_notes":             classification.get("notes"),
 
             # Clear any previous error

@@ -1,376 +1,528 @@
-"""
-CONDUIT — Evals Dashboard Page
-================================
-Reads a STATIC snapshot — never triggers a run.
-Zero cost to view, zero API calls.
+"""CONDUIT — Evals Dashboard (3-tab: Quality Gates / Agent Health / Cost & Latency)"""
 
-Cost model:
-    Viewing this page  →  $0.00 always (reads static JSON)
-    Running evals      →  manual only, via CLI
-    LangSmith          →  automatic, zero marginal cost
-
-To refresh results after a new run:
-    # run_evals.py auto-writes docs/eval_results.json
-    python evals/run_evals.py --free
-    git add docs/eval_results.json && git commit -m "docs: update eval snapshot"
-"""
-
-import os
-import json
+import os, json, sys
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timedelta
 
-# ── Static snapshot — priority order ──────────────────────────────────────────
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 SNAPSHOT_PATHS = [
-    os.path.join(ROOT, "docs", "eval_results.json"),          # committed snapshot (AWS)
-    os.path.join(ROOT, "evals", "reports", "latest", "summary.json"),  # local run
+    os.path.join(ROOT, "docs",  "eval_results.json"),
+    os.path.join(ROOT, "evals", "reports", "latest", "summary.json"),
 ]
 
-# ── Demo data — shown when no real snapshot exists ────────────────────────────
 DEMO_SUMMARY = {
     "_demo": True,
-    "run_at": "2026-03-10T10:30:00Z",
+    "run_at": "2026-04-10T10:30:00Z",
     "all_passed": True,
-    "passed": 7,
-    "failed": 0,
-    "total": 7,
-    "total_elapsed": 218.4,
+    "passed": 10, "failed": 0, "total": 10,
+    "total_elapsed": 245.0,
     "headline_metrics": [
-        {"id": "system_pass_rate", "label": "System Pass Rate", "value": 100, "unit": "%"},
-        {"id": "intake_classification_accuracy", "label": "Intake Accuracy", "value": 90.0, "unit": "%"},
-        {"id": "rag_recall_at_5", "label": "RAG Recall@5", "value": 80.0, "unit": "%"},
+        {"id": "system_pass_rate",               "value": 100},
+        {"id": "intake_classification_accuracy", "value": 90.0},
+        {"id": "rag_recall_at_5",                "value": 80.0},
     ],
+    "eval_metrics": {
+        "Fault Classification Accuracy":    {"eval": "Fault Classification Accuracy",    "pass_rate": 90.0,  "passed": 9,  "failed": 1, "total": 10},
+        "Urgency Accuracy":                 {"eval": "Urgency Accuracy",                 "pass_rate": 100.0, "passed": 10, "failed": 0, "total": 10},
+        "LLM Judge: Diagnosis Relevance":   {"eval": "LLM Judge: Diagnosis Relevance",   "pass_rate": 90.0,  "passed": 9,  "failed": 1, "total": 10},
+        "LLM Judge: Hallucination Check":   {"eval": "LLM Judge: Hallucination Check",   "pass_rate": 100.0, "passed": 10, "failed": 0, "total": 10},
+        "LLM Judge: Technician Clarity":    {"eval": "LLM Judge: Technician Clarity",    "pass_rate": 90.0,  "passed": 9,  "failed": 1, "total": 10},
+        "RAG Precision@5":                  {"eval": "RAG Precision@5",                  "pass_rate": 100.0, "passed": 5,  "failed": 0, "total": 5},
+        "RAG Recall@5":                     {"eval": "RAG Recall@5",                     "pass_rate": 80.0,  "passed": 4,  "failed": 1, "total": 5},
+        "RAG Relevance Score":              {"eval": "RAG Relevance Score",              "pass_rate": 100.0, "passed": 5,  "failed": 0, "total": 5},
+        "GST Calculation Accuracy":         {"eval": "GST Calculation Accuracy",         "pass_rate": 100.0, "passed": 5,  "failed": 0, "total": 5},
+        "Parts Compatibility Accuracy":     {"eval": "Parts Compatibility Accuracy",     "pass_rate": 100.0, "passed": 5,  "failed": 0, "total": 5},
+        "Quoting Dataset Accuracy":         {"eval": "Quoting Dataset Accuracy",         "pass_rate": 100.0, "passed": 4,  "failed": 0, "total": 4},
+        "Reorder Quantity Accuracy":        {"eval": "Reorder Quantity Accuracy",        "pass_rate": 100.0, "passed": 4,  "failed": 0, "total": 4},
+    },
     "modules": [
-        {"label": "Intake Guardrails",      "passed": True,  "cost": "$0.00", "elapsed_s": 38.2},
-        {"label": "Quoting Guardrails",     "passed": True,  "cost": "$0.00", "elapsed_s": 22.1},
-        {"label": "Output Validators",      "passed": True,  "cost": "$0.00", "elapsed_s": 19.6},
-        {"label": "Inventory Agent",        "passed": True,  "cost": "$0.00", "elapsed_s": 28.4},
-        {"label": "Quoting Agent",          "passed": True,  "cost": "$0.00", "elapsed_s": 31.7},
-        {"label": "Transaction Agent",      "passed": True,  "cost": "$0.00", "elapsed_s": 44.8},
-        {"label": "Replenishment Agent",    "passed": True,  "cost": "$0.00", "elapsed_s": 33.6},
+        {"label": "Intake Guardrails",              "passed": True,  "cost": "$0.00",  "elapsed_s": 38.2},
+        {"label": "Quoting Guardrails",             "passed": True,  "cost": "$0.00",  "elapsed_s": 22.1},
+        {"label": "Output Validators",              "passed": True,  "cost": "$0.00",  "elapsed_s": 19.6},
+        {"label": "Inventory Agent",                "passed": True,  "cost": "$0.00",  "elapsed_s": 28.4},
+        {"label": "Quoting Agent",                  "passed": True,  "cost": "$0.00",  "elapsed_s": 31.7},
+        {"label": "Transaction Agent",              "passed": True,  "cost": "$0.00",  "elapsed_s": 44.8},
+        {"label": "Replenishment Agent",            "passed": True,  "cost": "$0.00",  "elapsed_s": 33.6},
+        {"label": "Intake Agent (LLM)",             "passed": True,  "cost": "~$0.20", "elapsed_s": 62.1},
+        {"label": "RAG Retrieval (Pinecone)",       "passed": True,  "cost": "~$0.05", "elapsed_s": 18.4},
+        {"label": "LLM-as-Judge (Diagnosis)",       "passed": True,  "cost": "~$0.05", "elapsed_s": 24.3},
     ],
 }
 
 
-def _load_snapshot() -> dict:
+def _load_snapshot():
     for path in SNAPSHOT_PATHS:
         if os.path.exists(path):
-            with open(path) as f:
-                data = json.load(f)
-                data["_source"] = "real"
-                return data
-    # Fall back to demo data — safe for recruiter demos, clearly labelled
+            try:
+                with open(path) as f:
+                    d = json.load(f)
+                    d["_source"] = "real"
+                    return d
+            except Exception:
+                continue
     return DEMO_SUMMARY
 
 
-def _fmt_time(seconds: float) -> str:
-    return f"{seconds:.0f}s" if seconds < 60 else f"{seconds/60:.1f}m"
-
-
-def _fmt_date(iso: str) -> str:
+def _fmt_date(iso):
     try:
         dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-        return dt.strftime("%d %b %Y · %H:%M UTC")
+        return dt.strftime("%d %b %Y, %H:%M UTC")
     except Exception:
         return iso
 
 
-def _fmt_percent(value) -> str:
-    if value is None:
-        return "N/A"
+def _pct(v):
+    if v is None: return "N/A"
+    try:    return f"{float(v):.0f}%"
+    except: return "N/A"
+
+
+def _metric_card(label, value_str, sub=None, color="#1c1917"):
+    st.markdown(f"""
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
+                padding:14px 18px;margin-bottom:8px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
+                    letter-spacing:0.1em;text-transform:uppercase;color:#64748b;">
+            {label}
+        </div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:1.4rem;
+                    font-weight:700;color:{color};margin-top:4px;">
+            {value_str}
+        </div>
+        {f'<div style="font-size:0.72rem;color:#64748b;margin-top:2px;">{sub}</div>' if sub else ''}
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def _eval_row(label, pass_rate, passed, total, desc=""):
+    color = "#15803d" if pass_rate >= 90 else "#ca8a04" if pass_rate >= 70 else "#dc2626"
+    bar_w = int(pass_rate)
+    st.markdown(f"""
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
+                padding:12px 18px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+                <div style="font-weight:600;font-size:0.88rem;color:#1c1917;">{label}</div>
+                {f'<div style="font-size:0.72rem;color:#64748b;margin-top:2px;">{desc}</div>' if desc else ''}
+                <div style="font-size:0.72rem;color:#64748b;margin-top:2px;">{passed}/{total} cases passing</div>
+            </div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:1.15rem;
+                        font-weight:700;color:{color};white-space:nowrap;margin-left:16px;">
+                {pass_rate:.0f}%
+            </div>
+        </div>
+        <div style="background:#e2e8f0;border-radius:4px;height:5px;width:100%;margin-top:8px;">
+            <div style="background:{color};border-radius:4px;height:5px;width:{bar_w}%;"></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def _get_agent_stats():
     try:
-        return f"{float(value):.0f}%"
+        sys.path.insert(0, ROOT)
+        from database.connection import get_session
+        from database.models import AgentAuditLog
+        from sqlalchemy import func
+        cutoff = datetime.utcnow() - timedelta(days=7)
+        with get_session() as db:
+            rows = (
+                db.query(
+                    AgentAuditLog.agent_name,
+                    func.count(AgentAuditLog.log_id).label("runs"),
+                    func.avg(AgentAuditLog.latency_ms).label("avg_ms"),
+                    func.min(AgentAuditLog.latency_ms).label("min_ms"),
+                    func.max(AgentAuditLog.latency_ms).label("max_ms"),
+                )
+                .filter(
+                    AgentAuditLog.action == "agent_end",
+                    AgentAuditLog.created_at >= cutoff,
+                    AgentAuditLog.latency_ms.isnot(None),
+                )
+                .group_by(AgentAuditLog.agent_name)
+                .order_by(func.avg(AgentAuditLog.latency_ms).desc())
+                .all()
+            )
+        labels  = {"intake_agent": "Intake Agent", "quoting_agent": "Quoting Agent",
+                   "inventory_agent": "Inventory Agent", "transaction_agent": "Transaction Agent",
+                   "replenishment_agent": "Replenishment Agent"}
+        llm_set = {"intake_agent"}
+        return [{"key": r.agent_name, "label": labels.get(r.agent_name, r.agent_name),
+                 "runs": r.runs, "avg_ms": round(r.avg_ms) if r.avg_ms else 0,
+                 "min_ms": r.min_ms or 0, "max_ms": r.max_ms or 0,
+                 "llm": r.agent_name in llm_set} for r in rows]
     except Exception:
-        return "N/A"
-
-
-def _get_headline_metrics(summary: dict) -> list[dict]:
-    """Returns exactly 3 headline metrics with safe defaults."""
-    passed = summary.get("passed", 0)
-    total = summary.get("total", 0)
-    default_system_pass_rate = round(passed / total * 100, 0) if total else 0
-
-    metric_map = {m.get("id"): m for m in (summary.get("headline_metrics") or []) if isinstance(m, dict)}
-
-    def _value(metric_id: str, fallback):
-        m = metric_map.get(metric_id) or {}
-        return m.get("value", fallback)
-
-    return [
-        {"label": "System Pass Rate", "value": _value("system_pass_rate", default_system_pass_rate)},
-        {"label": "Intake Accuracy", "value": _value("intake_classification_accuracy", None)},
-        {"label": "RAG Recall@5", "value": _value("rag_recall_at_5", None)},
-    ]
-
-
-def _eval_metrics_rows(summary: dict) -> list[dict]:
-    eval_metrics = summary.get("eval_metrics") or {}
-    if not isinstance(eval_metrics, dict):
         return []
-
-    rows: list[dict] = []
-    for name, m in eval_metrics.items():
-        if not isinstance(m, dict):
-            continue
-        rows.append(
-            {
-                "Eval": m.get("eval") or name,
-                "Pass rate": m.get("pass_rate"),
-                "Passed": m.get("passed"),
-                "Failed": m.get("failed"),
-                "Total": m.get("total"),
-            }
-        )
-
-    # Stable ordering: highest importance first if present, then alpha.
-    priority = ["Fault Classification Accuracy", "RAG Recall@5"]
-    rows.sort(
-        key=lambda r: (
-            priority.index(r["Eval"]) if r.get("Eval") in priority else 999,
-            str(r.get("Eval") or ""),
-        )
-    )
-    return rows
-
-
-def _snapshot_context_lines(summary: dict) -> list[str]:
-    meta = summary.get("meta") or {}
-    if not isinstance(meta, dict):
-        return []
-
-    parts: list[str] = []
-    model = meta.get("openai_model")
-    if model:
-        parts.append(f"Model: {model}")
-
-    ds_hash = meta.get("datasets_hash_sha256")
-    if ds_hash:
-        ds_count = meta.get("datasets_files_count")
-        if isinstance(ds_count, int):
-            parts.append(f"Datasets: {ds_count} files · {str(ds_hash)[:7]}…")
-        else:
-            parts.append(f"Datasets: {str(ds_hash)[:7]}…")
-
-    sha = meta.get("git_sha_short") or (str(meta.get("git_sha"))[:7] if meta.get("git_sha") else None)
-    if sha and sha != "None":
-        parts.append(f"Commit: {sha}")
-
-    return parts
 
 
 def render_evals():
 
     st.markdown("""
-    <div class="page-eyebrow">SYSTEM HEALTH</div>
-    <div class="page-title">Eval Results</div>
-    <div class="page-heading">Static snapshot — zero cost to view, no LLM calls triggered</div>
+    <div style="margin-bottom:2rem;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;
+                    letter-spacing:0.15em;text-transform:uppercase;color:#64748b;">
+            System Health
+        </div>
+        <h1 style="font-family:'IBM Plex Mono',monospace;font-size:2rem;
+                   font-weight:600;color:#1c1917;margin:0.25rem 0;">
+            Eval Results
+        </h1>
+    </div>
     """, unsafe_allow_html=True)
 
-    summary   = _load_snapshot()
-    is_demo   = summary.get("_demo", False)
-    is_real   = summary.get("_source") == "real"
+    summary     = _load_snapshot()
+    is_demo     = summary.get("_demo", False)
+    agent_stats = _get_agent_stats()
+    run_at      = summary.get("run_at", "")
 
-    # ── Source badge ──────────────────────────────────────────────────────────
     if is_demo:
         st.info(
-            "**Demo mode** — showing representative results. "
-            "Run `python evals/run_evals.py --free` and commit the snapshot to show real results.",
+            "**Demo mode** — representative results. "
+            "Run `python evals/run_evals.py --free` and commit `docs/eval_results.json` to show real numbers.",
             icon="🧪"
         )
     else:
-        st.markdown("""
-        <div style="display:inline-flex;align-items:center;gap:6px;
-                    background:#f0fdf4;border:1px solid #bbf7d0;border-radius:20px;
+        st.markdown(f"""
+        <div style="display:inline-flex;align-items:center;gap:8px;background:#f0fdf4;
+                    border:1px solid #bbf7d0;border-radius:20px;
                     padding:4px 14px;font-size:0.78rem;color:#15803d;margin-bottom:16px;">
-            ✓ Live snapshot — committed results, $0.00 to view
+            ✓ Live snapshot · {_fmt_date(run_at)} · $0.00 to view
         </div>
         """, unsafe_allow_html=True)
 
-    ctx = _snapshot_context_lines(summary)
-    if ctx:
-        st.caption(" · ".join(ctx))
+    tab1, tab2, tab3 = st.tabs(["📊 Quality Gates", "🤖 Agent Health", "💰 Cost & Latency"])
 
-        with st.expander("ℹ️ Snapshot context"):
-            meta = summary.get("meta") or {}
-            if isinstance(meta, dict):
-                st.json(meta)
+    # ══════════════════════════════════════════════════
+    # TAB 1 — QUALITY GATES
+    # ══════════════════════════════════════════════════
+    with tab1:
+        passed     = summary.get("passed", 0)
+        total      = summary.get("total", 0)
+        all_passed = summary.get("all_passed", False)
+        elapsed    = summary.get("total_elapsed", 0)
+        modules    = summary.get("modules", [])
+        em         = summary.get("eval_metrics") or {}
+        mmap       = {m.get("id"): m for m in (summary.get("headline_metrics") or []) if isinstance(m, dict)}
 
-    # ── Data ──────────────────────────────────────────────────────────────────
-    all_passed    = summary.get("all_passed", False)
-    passed        = summary.get("passed", 0)
-    total         = summary.get("total", 0)
-    failed        = summary.get("failed", 0)
-    total_elapsed = summary.get("total_elapsed", 0)
-    run_at        = summary.get("run_at", "")
-    modules       = summary.get("modules", [])
+        def _val(mid, fb=None):
+            return (mmap.get(mid) or {}).get("value", fb)
 
-    # ── Status banner ─────────────────────────────────────────────────────────
-    if all_passed:
-        st.markdown(f"""
-        <div style="background:#f0fdf4;border:1.5px solid #16a34a;border-radius:10px;
-                    padding:18px 24px;margin-bottom:24px;display:flex;align-items:center;gap:16px;">
-            <span style="font-size:2rem;">✅</span>
-            <div>
-                <div style="font-size:1.1rem;font-weight:600;color:#15803d;">
-                    ALL EVALS PASSING — System is production ready
-                </div>
-                <div style="font-size:0.82rem;color:#166534;margin-top:4px;">
-                    Last run: {_fmt_date(run_at)} · {_fmt_time(total_elapsed)}
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        failed_names = [m["label"] for m in modules if not m.get("passed")]
-        st.markdown(f"""
-        <div style="background:#fef2f2;border:1.5px solid #dc2626;border-radius:10px;
-                    padding:18px 24px;margin-bottom:24px;display:flex;align-items:center;gap:16px;">
-            <span style="font-size:2rem;">❌</span>
-            <div>
-                <div style="font-size:1.1rem;font-weight:600;color:#991b1b;">
-                    {failed} MODULE(S) FAILING — {', '.join(failed_names)}
-                </div>
-                <div style="font-size:0.82rem;color:#7f1d1d;margin-top:4px;">
-                    Last run: {_fmt_date(run_at)}
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # ── Headline metrics (3 only) ─────────────────────────────────────────────
-    m1, m2, m3 = _get_headline_metrics(summary)
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.metric(m1["label"], _fmt_percent(m1["value"]))
-    with c2:
-        st.metric(m2["label"], _fmt_percent(m2["value"]))
-    with c3:
-        st.metric(m3["label"], _fmt_percent(m3["value"]))
-
-    st.caption(
-        "Intake Accuracy and RAG Recall@5 are computed from DeepEval runs. "
-        "They show as N/A if the corresponding eval module failed or was skipped in the last snapshot."
-    )
-
-    st.markdown("---")
-
-    # ── Module cards ──────────────────────────────────────────────────────────
-    st.markdown("#### Module Breakdown")
-
-    with st.expander("🛡️ What guardrails are enforced?"):
-        st.markdown(
-            """
-These guardrails are deterministic validation rules enforced **before writing to the DB** or passing state to the next agent.
-
-- **Intake Agent guardrails**: required fields exist, allowed enums for `fault_classification` and `urgency`, `confidence` is within [0,1], and a **safety override** blocks `BRAKE_SYSTEM` / `EV_SYSTEM` outputs with `LOW` urgency.
-- **Quoting Agent guardrails**: totals must be positive, line-items must exist, arithmetic must add up, **discount is capped at 30%** (unless recall), and **GST must be 18% of the post-discount amount**.
-- **Inventory / Transaction / Replenishment validators**: schema + sanity checks (required fields, non-negative quantities, quote_id present before transaction, and purchase orders must have positive value).
-
-These rules live in the agents as `validate_*_output(...)` and are covered by the `$0.00` pytest modules shown above.
-            """.strip()
-        )
-
-    guardrail_labels = {"Guardrail", "Validator"}
-    llm_labels       = {"Pipeline", "RAG", "LLM"}
-
-    guardrails = [m for m in modules if any(x in m["label"] for x in guardrail_labels)]
-    llm_evals  = [m for m in modules if any(x in m["label"] for x in llm_labels)]
-    components = [m for m in modules if m not in guardrails and m not in llm_evals]
-
-    sections = [
-        ("🛡️ Guardrails — deterministic, always $0.00",  guardrails),
-        ("⚙️ Component Evals — logic accuracy, $0.00",   components),
-        ("🤖 LLM Evals — quality metrics, ~$1.00",        llm_evals),
-    ]
-
-    for section_title, section_modules in sections:
-        if not section_modules:
-            continue
-        st.markdown(f"**{section_title}**")
-        for m in section_modules:
-            ok     = m.get("passed", False)
-            bg     = "#f0fdf4" if ok else "#fef2f2"
-            border = "#16a34a" if ok else "#dc2626"
-            sc     = "#15803d" if ok else "#991b1b"
+        # Status banner
+        if all_passed:
             st.markdown(f"""
-            <div style="background:{bg};border:1px solid {border};border-radius:8px;
-                        padding:12px 18px;margin-bottom:8px;
-                        display:flex;align-items:center;justify-content:space-between;">
+            <div style="background:#f0fdf4;border:1.5px solid #16a34a;border-radius:10px;
+                        padding:16px 24px;margin-bottom:20px;display:flex;align-items:center;gap:14px;">
+                <span style="font-size:1.5rem;">✅</span>
+                <div>
+                    <div style="font-size:1rem;font-weight:600;color:#15803d;">
+                        {passed}/{total} eval modules passing — system is production ready
+                    </div>
+                    <div style="font-size:0.76rem;color:#166534;margin-top:2px;">
+                        Last run: {_fmt_date(run_at)} · {elapsed:.0f}s total
+                    </div>
+                </div>
+            </div>""", unsafe_allow_html=True)
+        else:
+            bad = [m["label"] for m in modules if not m.get("passed")]
+            st.error(f"**{summary.get('failed',0)} failing:** {', '.join(bad)}")
+
+        # KPI row
+        c1, c2, c3, c4 = st.columns(4)
+        with c1: st.metric("System Pass Rate", _pct(_val("system_pass_rate", round(passed/total*100) if total else 0)))
+        with c2: st.metric("LLM Accuracy", _pct(_val("intake_classification_accuracy")), help="GPT-4o fault classification vs 10 ground truth labels")
+        with c3: st.metric("RAG Recall@5", _pct(_val("rag_recall_at_5")), help="Expected parts found in Pinecone top-5 results")
+        with c4:
+            ng = len([m for m in modules if any(x in m.get("label","") for x in {"Guardrail","Validator"})])
+            st.metric("Active Guardrails", ng, help="Deterministic checks on every pipeline run")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── LAYER 1: GUARDRAILS
+        st.markdown("#### 🛡️ Layer 1 — Rule-Based Guardrails")
+        st.caption("Deterministic Python validation — $0.00, enforced on every live pipeline execution")
+
+        with st.expander("View all 14 guardrail checks"):
+            st.markdown("""
+**Intake Agent (5 checks)**
+- Required fields present: fault_classification, urgency, confidence, required_parts
+- Enum validation: fault_classification ∈ 7 allowed values
+- Enum validation: urgency ∈ {HIGH, MEDIUM, LOW, NEEDS_CLARIFICATION}
+- Confidence bounds: 0.0 ≤ confidence ≤ 1.0
+- **Safety override**: BRAKE_SYSTEM / EV_SYSTEM cannot have LOW urgency — auto-escalated
+
+**Quoting Agent (5 checks)**
+- Quote total must be positive
+- Line items must be non-empty
+- Arithmetic: subtotal + GST − discount = total (±₹1 tolerance)
+- **Discount cap**: max 30% unless recall job
+- **GST validation**: exactly 18% of post-discount subtotal
+
+**Inventory / Transaction / Replenishment (4 checks)**
+- Schema: required fields present, non-negative quantities
+- quote_id must exist before transaction proceeds
+- PO values must be positive
+- Supplier scoring must produce ranked list before PO creation
+            """)
+
+        for m in [x for x in modules if any(g in x.get("label","") for g in {"Guardrail","Validator"})]:
+            ok = m.get("passed", False)
+            st.markdown(f"""
+            <div style="background:{"#f0fdf4" if ok else "#fef2f2"};border:1px solid {"#16a34a" if ok else "#dc2626"};
+                        border-radius:8px;padding:10px 18px;margin-bottom:6px;
+                        display:flex;justify-content:space-between;align-items:center;">
                 <div style="display:flex;align-items:center;gap:10px;">
                     <span>{"✅" if ok else "❌"}</span>
                     <div>
-                        <div style="font-weight:600;font-size:0.92rem;color:#1c1917;">
-                            {m["label"]}
-                        </div>
-                        <div style="font-size:0.75rem;color:#57534e;margin-top:2px;">
-                            Cost: {m.get("cost","$0.00")} · Runtime: {m.get("elapsed_s",0)}s
-                        </div>
+                        <div style="font-weight:600;font-size:0.88rem;">{m["label"]}</div>
+                        <div style="font-size:0.72rem;color:#57534e;">Cost: {m.get("cost","$0.00")} · {m.get("elapsed_s",0):.1f}s</div>
                     </div>
                 </div>
-                <div style="font-weight:700;font-size:0.82rem;color:{sc};letter-spacing:0.05em;">
-                    {"PASSED" if ok else "FAILED"}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        st.markdown("")
+                <div style="font-weight:700;font-size:0.78rem;color:{"#15803d" if ok else "#991b1b"};">{"PASSED" if ok else "FAILED"}</div>
+            </div>""", unsafe_allow_html=True)
 
-    st.markdown("---")
+        st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── DeepEval breakdown (agent quality) ───────────────────────────────────
-    with st.expander("📊 DeepEval breakdown (agent quality metrics)"):
-        rows = _eval_metrics_rows(summary)
-        if rows:
-            st.dataframe(
-                rows,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Pass rate": st.column_config.NumberColumn(format="%.1f"),
-                },
-            )
+        # ── LAYER 2: LLM ACCURACY (ground truth)
+        st.markdown("#### 🤖 Layer 2 — LLM Classification Accuracy")
+        st.caption("Intake Agent (GPT-4o) evaluated against 10 labelled ground truth cases · ~$0.20/run")
+
+        for key in ["Fault Classification Accuracy", "Urgency Accuracy"]:
+            m = em.get(key)
+            if m:
+                _eval_row(key, m.get("pass_rate",0), m.get("passed",0), m.get("total",0),
+                          "fault_classification enum match" if "Fault" in key else "urgency enum match")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── LAYER 3: LLM-AS-JUDGE
+        st.markdown("#### 🧑‍⚖️ Layer 3 — LLM-as-Judge (Diagnosis Quality)")
+        st.caption("GPT-4o evaluates the free-text fault_description and notes for relevance, hallucination, and clarity · ~$0.05/run")
+
+        with st.expander("How LLM-as-judge works in Conduit"):
+            st.markdown("""
+The Intake Agent produces two free-text outputs alongside its structured classification:
+- **fault_description** — one sentence describing the likely fault for the technician
+- **notes** — additional context or instructions
+
+These cannot be evaluated with exact match (unlike enum fields).
+A second GPT-4o call acts as a **quality judge**, evaluating each output on:
+
+1. **Diagnosis Relevance** — does fault_description directly address the complaint?
+2. **Hallucination Check** — does it mention issues/parts NOT in the complaint or catalog?
+3. **Technician Clarity** — would a technician clearly understand what to inspect/fix?
+
+This costs ~$0.05 for 10 eval cases (short judge prompt, 200 max tokens each).
+The judge uses temperature=0.0 for deterministic evaluation.
+            """)
+
+        for key in ["LLM Judge: Diagnosis Relevance", "LLM Judge: Hallucination Check", "LLM Judge: Technician Clarity"]:
+            m = em.get(key)
+            descs = {
+                "LLM Judge: Diagnosis Relevance": "Is fault_description relevant to the original complaint?",
+                "LLM Judge: Hallucination Check": "Does response avoid hallucinating parts/issues not in complaint or catalog?",
+                "LLM Judge: Technician Clarity":  "Would a technician clearly understand what to inspect/repair?",
+            }
+            if m:
+                _eval_row(key, m.get("pass_rate",0), m.get("passed",0), m.get("total",0), descs.get(key,""))
+            else:
+                st.markdown(f"""
+                <div style="background:#fafafa;border:1px dashed #cbd5e1;border-radius:8px;
+                            padding:10px 18px;margin-bottom:8px;">
+                    <div style="font-weight:600;font-size:0.88rem;color:#64748b;">{key}</div>
+                    <div style="font-size:0.72rem;color:#94a3b8;">{descs.get(key,"")} · Run evals/run_evals.py to populate</div>
+                </div>""", unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # ── LAYER 4: RAG METRICS
+        st.markdown("#### 🔍 Layer 4 — RAG Retrieval Quality (Pinecone)")
+        st.caption("Measures whether the right parts are retrieved for a given complaint · ~$0.05/run (embeddings only)")
+
+        rag_descs = {
+            "RAG Precision@5":    "Of top-5 retrieved parts, what fraction are relevant to the complaint?",
+            "RAG Recall@5":       "Of all expected part categories, what fraction appear in top-5 results?",
+            "RAG Relevance Score":"Average cosine similarity score from Pinecone (target ≥ 0.70)",
+        }
+        has_rag = any(em.get(k) for k in rag_descs)
+        if not has_rag:
+            st.info("Run `python evals/run_evals.py --rag-only` (~$0.05) to populate RAG metrics.", icon="🔍")
         else:
-            st.caption(
-                "No per-eval DeepEval metrics were recorded in this snapshot. "
-                "This usually means LLM/RAG eval modules failed or were skipped."
-            )
+            for key, desc in rag_descs.items():
+                m = em.get(key)
+                if m:
+                    _eval_row(key, m.get("pass_rate",0), m.get("passed",0), m.get("total",0), desc)
 
-    # ── Cost model explainer ──────────────────────────────────────────────────
-    st.markdown("#### 💡 Cost Model")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("""
-        **This page** — $0.00 always
-        Reads a static JSON file, zero API calls.
+        st.markdown("<br>", unsafe_allow_html=True)
 
-        **Free evals** `--free`
-        Guardrails + component evals.
-        Pure Python logic, no LLM. $0.00/run.
-        """)
-    with col2:
-        st.markdown("""
-        **Full eval suite** — ~$1.00
-        LLM judge metrics + RAG + pipeline.
-        Run manually before deploy/demo.
+        # ── LAYER 5: COMPONENT ACCURACY
+        st.markdown("#### ⚙️ Layer 5 — Component Logic Accuracy")
+        st.caption("Agent business logic tested against synthetic datasets · $0.00/run")
 
-        **LangSmith** — always on, free
-        Traces every pipeline run automatically.
-        View at smith.langchain.com.
-        """)
+        comp_keys = ["GST Calculation Accuracy","Parts Compatibility Accuracy",
+                     "Quoting Dataset Accuracy","Reorder Quantity Accuracy"]
+        for key in comp_keys:
+            m = em.get(key)
+            if m:
+                _eval_row(key, m.get("pass_rate",0), m.get("passed",0), m.get("total",0))
 
-    # ── Refresh instructions ──────────────────────────────────────────────────
-    with st.expander("🔄 How to update these results"):
-        st.code("""
-# Run free evals ($0.00)
+        # Hallucination explainer
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.expander("🧠 Hallucination prevention architecture"):
+            st.markdown("""
+Conduit uses **structural prevention** (guards against hallucinations at the source)
+combined with **LLM-as-judge** (detects any that slip through):
+
+| Method | How | Where |
+|---|---|---|
+| RAG grounding | Parts must come from Pinecone — agent cannot invent part numbers | Intake Agent |
+| Enum constraints | fault_classification / urgency validated against strict allowed-values list | Guardrail Layer |
+| Deterministic financials | All quoting maths is pure Python — GPT-4o never touches numbers | Quoting Agent |
+| Confidence threshold | Complaints < 70% confidence routed to human review (HITL) | Intake Agent |
+| **LLM-as-judge** | GPT-4o evaluates free-text diagnosis for hallucinated content | Eval Layer 3 |
+| LangSmith tracing | Every GPT-4o call logged — prompt/response auditable per RO | Observability |
+            """)
+
+    # ══════════════════════════════════════════════════
+    # TAB 2 — AGENT HEALTH
+    # ══════════════════════════════════════════════════
+    with tab2:
+        st.markdown("#### Per-Agent Latency — Last 7 Days")
+        st.caption("Live data from `agent_audit_log` table · logged automatically on every pipeline run")
+
+        if not agent_stats:
+            st.info("No agent data yet. Run a pipeline from New Repair Order to populate this tab.")
+        else:
+            total_ms = sum(r["avg_ms"] for r in agent_stats)
+            slowest  = max(agent_stats, key=lambda r: r["avg_ms"])
+            llm_r    = next((r for r in agent_stats if r["llm"]), None)
+            llm_pct  = round(llm_r["avg_ms"] / total_ms * 100) if llm_r and total_ms else 0
+
+            c1, c2, c3, c4 = st.columns(4)
+            with c1: st.metric("Pipeline Runs (7d)", agent_stats[0]["runs"])
+            with c2: st.metric("Avg Pipeline Time", f"{total_ms/1000:.1f}s", help="Sum of avg latency across all agents")
+            with c3: st.metric("Slowest Agent", slowest["label"].replace(" Agent",""), delta=f"{slowest['avg_ms']}ms avg", delta_color="off")
+            with c4: st.metric("LLM % of Pipeline", f"{llm_pct}%", help="% of pipeline time on GPT-4o (Intake only)")
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("**Latency by Agent**")
+
+            max_ms = max(r["avg_ms"] for r in agent_stats) or 1
+            for r in sorted(agent_stats, key=lambda x: x["avg_ms"], reverse=True):
+                pct   = r["avg_ms"] / max_ms * 100
+                color = "#f97316" if r["llm"] else "#3b82f6"
+                tag   = "GPT-4o" if r["llm"] else "deterministic"
+                st.markdown(f"""
+                <div style="margin-bottom:10px;">
+                    <div style="display:flex;justify-content:space-between;
+                                font-family:'IBM Plex Mono',monospace;font-size:0.75rem;
+                                color:#334155;margin-bottom:3px;">
+                        <span>{r["label"]} <span style="color:#94a3b8;font-size:0.68rem;">· {tag}</span></span>
+                        <span>{r["avg_ms"]}ms avg &nbsp;|&nbsp; {r["min_ms"]}–{r["max_ms"]}ms range</span>
+                    </div>
+                    <div style="background:#e2e8f0;border-radius:4px;height:7px;">
+                        <div style="background:{color};border-radius:4px;height:7px;width:{pct:.0f}%;"></div>
+                    </div>
+                </div>""", unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.caption("🟠 Orange = LLM (GPT-4o) · 🔵 Blue = deterministic Python")
+
+            import pandas as pd
+            df = pd.DataFrame([{
+                "Agent": r["label"], "Avg (ms)": r["avg_ms"],
+                "Min (ms)": r["min_ms"], "Max (ms)": r["max_ms"],
+                "Runs (7d)": r["runs"], "Type": "LLM" if r["llm"] else "Deterministic",
+            } for r in agent_stats])
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+    # ══════════════════════════════════════════════════
+    # TAB 3 — COST & LATENCY
+    # ══════════════════════════════════════════════════
+    with tab3:
+        st.markdown("#### Cost per Pipeline Run")
+
+        # GPT-4o pricing (gpt-4o as of 2024)
+        INPUT_COST_PER_1K  = 0.005
+        OUTPUT_COST_PER_1K = 0.015
+        intake_input  = 800;  intake_output  = 400
+        judge_input   = 300;  judge_output   = 80   # eval only, not per live run
+        embed_tokens  = 200
+
+        intake_cost   = intake_input/1000*INPUT_COST_PER_1K + intake_output/1000*OUTPUT_COST_PER_1K
+        embed_cost    = embed_tokens/1000 * 0.0001
+        total_run     = intake_cost + embed_cost
+
+        runs_7d = agent_stats[0]["runs"] if agent_stats else 0
+        spend_7d = total_run * runs_7d
+
+        c1, c2, c3, c4 = st.columns(4)
+        with c1: st.metric("Cost per Pipeline Run", f"~${total_run:.4f}", help="GPT-4o intake + Pinecone embedding")
+        with c2: st.metric("GPT-4o per Run", f"~${intake_cost:.4f}", help=f"~{intake_input} input + ~{intake_output} output tokens")
+        with c3: st.metric("Embedding per Run", f"~${embed_cost:.6f}", help="text-embedding-3-small, ~200 tokens")
+        with c4: st.metric("Est. 7-Day Spend", f"~${spend_7d:.2f}", delta=f"{runs_7d} runs" if runs_7d else None, delta_color="off")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        st.markdown("**Cost Breakdown — per live pipeline run**")
+        import pandas as pd
+        live_costs = pd.DataFrame([
+            {"Component": "GPT-4o — Intake Classification",   "Tokens": f"~{intake_input+intake_output}",  "Est. Cost": f"${intake_cost:.4f}", "Notes": "Only LLM call in production pipeline"},
+            {"Component": "Pinecone — Semantic Part Search",  "Tokens": f"~{embed_tokens}",                "Est. Cost": f"${embed_cost:.6f}",  "Notes": "text-embedding-3-small"},
+            {"Component": "PostgreSQL — All 5 Agents",        "Tokens": "—",                               "Est. Cost": "$0.0000",             "Notes": "Cloud SQL, fixed monthly cost"},
+            {"Component": "Cloud Run — Backend compute",      "Tokens": "—",                               "Est. Cost": "~$0.0001",            "Notes": "Per-request, negligible at this scale"},
+            {"Component": "Total per repair order",           "Tokens": "—",                               "Est. Cost": f"~${total_run:.4f}",  "Notes": "4 of 5 agents are 100% deterministic"},
+        ])
+        st.dataframe(live_costs, use_container_width=True, hide_index=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("**Cost Breakdown — eval suite (run before demo/deploy)**")
+        judge_cost = judge_input/1000*INPUT_COST_PER_1K*10 + judge_output/1000*OUTPUT_COST_PER_1K*10
+        eval_costs = pd.DataFrame([
+            {"Eval Module": "Guardrails — 3 modules",        "Cost": "$0.00",          "When": "Every deploy (CI/CD)", "What": "Pure Python assertions"},
+            {"Eval Module": "Component Evals — 5 agents",   "Cost": "$0.00",          "When": "Every deploy (CI/CD)", "What": "Logic accuracy vs synthetic datasets"},
+            {"Eval Module": "Intake Agent LLM accuracy",     "Cost": "~$0.20",         "When": "Pre-deploy",           "What": "10 GPT-4o calls vs ground truth labels"},
+            {"Eval Module": "LLM-as-Judge (diagnosis)",      "Cost": f"~${judge_cost:.2f}", "When": "Pre-deploy",      "What": "10 judge calls for free-text quality"},
+            {"Eval Module": "RAG Retrieval (Pinecone)",      "Cost": "~$0.05",         "When": "Weekly or pre-deploy", "What": "Precision@5, Recall@5, cosine similarity"},
+            {"Eval Module": "Full Pipeline — 5 end-to-end",  "Cost": "~$0.80",         "When": "Pre-release",          "What": "E2E success rate, latency, GST accuracy"},
+            {"Eval Module": "Total — full suite",            "Cost": "~$1.10",         "When": "—",                    "What": "—"},
+        ])
+        st.dataframe(eval_costs, use_container_width=True, hide_index=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("""
+**Why so cheap per run?**
+
+Only **1 of 5 agents** calls an LLM. Inventory,
+Quoting, Transaction, and Replenishment are 100%
+deterministic Python — no API calls, no latency risk,
+zero variable cost per run.
+            """)
+        with col2:
+            st.markdown("""
+**LangSmith observability**
+
+Every GPT-4o call is automatically traced to LangSmith —
+token counts, latency, prompt/response pairs are
+auditable per repair order at `eu.api.smith.langchain.com`.
+Zero extra instrumentation needed.
+            """)
+
+        with st.expander("🔄 How to refresh eval snapshot"):
+            st.code("""
+# Free evals — guardrails + component logic ($0.00)
 python evals/run_evals.py --free
 
-# The runner also writes docs/eval_results.json automatically.
-# Commit snapshot — page auto-updates after push
-git add docs/eval_results.json
-git commit -m "docs: update eval results snapshot"
-git push
-        """, language="bash")
+# With RAG + LLM-as-judge (~$0.10)
+python evals/run_evals.py --no-pipeline
 
-    with st.expander("📄 Raw JSON"):
-        st.json({k: v for k, v in summary.items() if not k.startswith("_")})
+# Full suite including end-to-end pipeline (~$1.10)
+python evals/run_evals.py
+
+# Commit snapshot → dashboard auto-updates
+git add docs/eval_results.json
+git commit -m "docs: update eval snapshot"
+git push
+            """, language="bash")
