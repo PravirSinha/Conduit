@@ -181,6 +181,7 @@ class DashboardStats(BaseModel):
     """Summary stats for Streamlit dashboard."""
     total_ros:          int
     open_ros:           int
+    in_progress_ros:    int = 0
     completed_ros:      int
     pending_approval:   int
     total_revenue:      float
@@ -191,3 +192,5 @@ class DashboardStats(BaseModel):
     pending_pos:        int
     total_po_value:     float
     avg_confidence:     float
+    revenue_7d:         float = 0.0
+    quotes_7d:          int   = 0

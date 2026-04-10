@@ -298,6 +298,26 @@ def run_replenishment_agent(state: dict) -> dict:
             latency_ms=latency_ms,
         )
 
+        # ── STEP 7: MARK RO AS COMPLETE ───────────────────────────────────
+        # Pipeline is done — update RO status to COMPLETE and write final_total
+        try:
+            quote = state.get("quote") or {}
+            final_total = float(quote.get("total_amount", 0))
+            from database.connection import get_session
+            from database.models import RepairOrder
+            from datetime import datetime
+            with get_session() as db:
+                ro = db.query(RepairOrder).filter(
+                    RepairOrder.ro_id == ro_id
+                ).first()
+                if ro and ro.status == "IN_PROGRESS":
+                    ro.status      = "COMPLETE"
+                    ro.final_total = final_total
+                    ro.updated_at  = datetime.utcnow()
+                    db.commit()
+        except Exception as e:
+            print(f"[REPLENISHMENT] Warning: could not mark RO complete: {e}", flush=True)
+
         return {
             **state,
             "pos_raised":      pos_raised,

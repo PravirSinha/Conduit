@@ -180,7 +180,7 @@ def save_quote_to_db(
             ).first()
             if ro:
                 ro.quote_id = quote_id
-                ro.status   = "QUOTED"
+                ro.status   = "IN_PROGRESS"
 
             db.commit()
 

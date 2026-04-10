@@ -23,7 +23,13 @@ def render_ro_table():
     with col1:
         status_filter = st.selectbox(
             "Filter by Status",
-            ["All", "OPEN", "IN_PROGRESS", "QUOTED", "COMPLETE", "CANCELLED"],
+            ["All", "OPEN", "IN_PROGRESS", "COMPLETE"],
+            format_func=lambda x: {
+                "All":         "All Orders",
+                "OPEN":        "Open — Awaiting Pipeline",
+                "IN_PROGRESS": "In Progress — Pipeline Running",
+                "COMPLETE":    "Complete — Quote Approved",
+            }.get(x, x)
         )
 
     status = None if status_filter == "All" else status_filter
