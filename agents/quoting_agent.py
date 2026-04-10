@@ -243,6 +243,7 @@ def run_quoting_agent(state: dict) -> dict:
         # When supervisor provides custom materials (bodywork, diagnostics etc.)
         # and no catalog parts were reserved, build line items from custom materials
         supervisor_custom_materials = state.get("supervisor_custom_materials") or []
+        supervisor_override         = state.get("supervisor_override", False)
         custom_line_items = []
         if supervisor_custom_materials and not reserved_parts:
             for mat in supervisor_custom_materials:
@@ -256,6 +257,17 @@ def run_quoting_agent(state: dict) -> dict:
                         "sell_price":  cost,
                         "subtotal":    cost,
                     })
+            # Always add a standard workshop labour charge for custom jobs
+            # Minimum 1 hour at standard technician rate
+            standard_labour_cost = 1200.0
+            custom_line_items.append({
+                "type":        "LABOR",
+                "description": "Workshop labour charge",
+                "quantity":    1,
+                "unit_cost":   standard_labour_cost,
+                "sell_price":  standard_labour_cost,
+                "subtotal":    standard_labour_cost,
+            })
 
         # ── STEP 3: BUILD OEM QUOTE ────────────────────────────────────────
         oem_parts_items  = build_parts_line_items(reserved_parts, use_oem=True)

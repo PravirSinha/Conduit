@@ -65,45 +65,56 @@ def infer_labor_from_parts(reserved_parts: List[Dict]) -> List[Dict]:
     explicit labor codes are provided by Intake Agent.
 
     Maps part subcategory → labor operation code.
-    Fallback for when recommended_labor_codes is empty.
+    Falls back to a standard workshop labour charge when no
+    specific operation is found — every job has some labour cost.
     """
     from database.connection import get_session
-    from database.models import LaborOperation
+    from database.models import LaborOperation, Inventory
 
-    # Subcategory → labor code mapping
+    # Expanded subcategory → labor code mapping
     subcategory_to_labor = {
+        # Brakes
         "Brake Pads":       "BRK-001",
         "Brake Rotors":     "BRK-002",
+        # Routine service
         "Oil Filters":      "SVC-001",
+        "Engine Oil":       "SVC-001",
         "Air Filters":      "SVC-002",
         "Spark Plugs":      "SVC-002",
+        # Electrical
         "Batteries":        "BAT-001",
+        # Suspension
         "Shock Absorbers":  "SUS-001",
+        # Engine
         "Timing Belt":      "ENG-001",
+        # EV
         "EV Battery":       "EV-001",
+        "EV Charger":       "EV-002",
+        # Wiper / general — fallback to basic service
+        "Wiper Blades":     "SVC-001",
     }
 
     inferred_codes = set()
 
     for part in reserved_parts:
-        # part may have subcategory directly or need lookup
         subcategory = part.get("subcategory")
 
         if not subcategory:
             # Look up from DB
-            from database.models import Inventory
             with get_session() as db:
                 inv = db.query(Inventory).filter(
-                    Inventory.part_number == part["part_number"]
+                    Inventory.part_number == part.get("part_number", "")
                 ).first()
                 if inv:
-                    subcategory = inv.subcategory
+                    subcategory = getattr(inv, "subcategory", None)
 
         if subcategory and subcategory in subcategory_to_labor:
             inferred_codes.add(subcategory_to_labor[subcategory])
 
     if not inferred_codes:
-        return []
+        # Fallback — every job has at minimum a standard workshop labour charge
+        # Use SVC-001 (0.5hr × ₹800 = ₹400) as the minimum labour line
+        return get_labor_operations(["SVC-001"])
 
     return get_labor_operations(list(inferred_codes))
 
