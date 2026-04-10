@@ -98,15 +98,20 @@ def render_overview():
 
     import pandas as pd
 
+    urgency_map = {"HIGH": "High", "MEDIUM": "Medium", "LOW": "Low", "NEEDS_CLARIFICATION": "Needs Review"}
+    status_map  = {"OPEN": "Open", "IN_PROGRESS": "In Progress", "COMPLETE": "Complete", "CLOSED": "Closed", "QUOTED": "In Progress"}
+    fault_map   = {"BRAKE_SYSTEM": "Brake System", "ELECTRICAL_SYSTEM": "Electrical", "ENGINE": "Engine",
+                   "SUSPENSION": "Suspension", "ROUTINE_SERVICE": "Routine Service", "EV_SYSTEM": "EV System", "UNKNOWN": "Under Review"}
+
     df = pd.DataFrame([
         {
-            "RO ID":       ro.get("ro_id"),
-            "Vehicle":     f"{ro.get('vehicle_year', '')} {ro.get('vehicle_make', '')} {ro.get('vehicle_model', '')}".strip(),
-            "Fault":       ro.get("fault_classification", "\u2014"),
-            "Urgency":     ro.get("urgency", "\u2014"),
-            "Status":      ro.get("status", "\u2014"),
+            "RO ID":   ro.get("ro_id"),
+            "Vehicle": f"{ro.get('vehicle_year', '')} {ro.get('vehicle_make', '')} {ro.get('vehicle_model', '')}".strip(),
+            "Fault":   fault_map.get(ro.get("fault_classification", ""), ro.get("fault_classification", "\u2014")),
+            "Urgency": urgency_map.get(ro.get("urgency", ""), ro.get("urgency", "\u2014")),
+            "Status":  status_map.get(ro.get("status", ""), ro.get("status", "\u2014")),
             "Total (\u20b9)": f"\u20b9{ro.get('final_total', 0):,.0f}" if ro.get("final_total") else "\u2014",
-            "Date":        ro.get("opened_at", "")[:10] if ro.get("opened_at") else "\u2014",
+            "Date":    ro.get("opened_at", "")[:10] if ro.get("opened_at") else "\u2014",
         }
         for ro in ros
     ])

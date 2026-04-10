@@ -39,15 +39,38 @@ def render_ro_table():
         st.info("No repair orders found")
         return
 
+    urgency_display = {
+        "HIGH":               "High",
+        "MEDIUM":             "Medium",
+        "LOW":                "Low",
+        "NEEDS_CLARIFICATION": "Needs Review",
+    }
+    status_display = {
+        "OPEN":        "Open",
+        "IN_PROGRESS": "In Progress",
+        "COMPLETE":    "Complete",
+        "CLOSED":      "Closed",
+        "QUOTED":      "In Progress",
+    }
+    fault_display = {
+        "BRAKE_SYSTEM":      "Brake System",
+        "ELECTRICAL_SYSTEM": "Electrical",
+        "ENGINE":            "Engine",
+        "SUSPENSION":        "Suspension",
+        "ROUTINE_SERVICE":   "Routine Service",
+        "EV_SYSTEM":         "EV System",
+        "UNKNOWN":           "Under Review",
+    }
+
     df = pd.DataFrame([
         {
             "RO ID":    ro.get("ro_id"),
-            "Vehicle":  f"{ro.get('vehicle_year', '')} {ro.get('vehicle_make', '')} {ro.get('vehicle_model', '')}",
+            "Vehicle":  f"{ro.get('vehicle_year', '')} {ro.get('vehicle_make', '')} {ro.get('vehicle_model', '')}".strip(),
             "Customer": ro.get("customer_name", "Walk-in") or "Walk-in",
-            "Fault":    ro.get("fault_classification", "—"),
-            "Urgency":  ro.get("urgency", "—"),
-            "Status":   ro.get("status", "—"),
-            "Total":    f"₹{ro.get('final_total', 0):,.0f}" if ro.get("final_total") else "—",
+            "Fault":    fault_display.get(ro.get("fault_classification", ""), ro.get("fault_classification", "—")),
+            "Urgency":  urgency_display.get(ro.get("urgency", ""), ro.get("urgency", "—")),
+            "Status":   status_display.get(ro.get("status", ""), ro.get("status", "—")),
+            "Total (₹)": f"₹{ro.get('final_total', 0):,.0f}" if ro.get("final_total") else "—",
             "Opened":   ro.get("opened_at", "")[:10] if ro.get("opened_at") else "—",
         }
         for ro in ros

@@ -31,7 +31,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     ).scalar() or 0
 
     completed_ros = db.query(func.count(RepairOrder.ro_id)).filter(
-        RepairOrder.status == "COMPLETE"
+        RepairOrder.status.in_(["COMPLETE", "CLOSED"])
     ).scalar() or 0
 
     pending_approval = db.query(func.count(RepairOrder.ro_id)).filter(
