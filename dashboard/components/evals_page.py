@@ -89,26 +89,25 @@ def _pct(v):
 
 
 def _bar(label, pass_rate, passed, total, desc=""):
-    """Renders a metric row with inline progress bar — pure st.markdown, no nested HTML issues."""
+    """Renders a metric row with progress bar using Streamlit native components."""
     color = "#15803d" if pass_rate >= 90 else "#ca8a04" if pass_rate >= 70 else "#dc2626"
     bar_w = min(int(pass_rate), 100)
-    sub   = f'<div style="font-size:0.71rem;color:#64748b;margin-top:1px;">{desc}</div>' if desc else ""
-    st.markdown(f"""
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
-                padding:11px 16px;margin-bottom:6px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <span style="font-weight:600;font-size:0.86rem;color:#1c1917;">{label}</span>
-          {sub}
-          <div style="font-size:0.70rem;color:#94a3b8;margin-top:1px;">{passed}/{total} cases</div>
-        </div>
-        <span style="font-family:'IBM Plex Mono',monospace;font-size:1.05rem;
-                     font-weight:700;color:{color};">{pass_rate:.0f}%</span>
-      </div>
-      <div style="background:#e2e8f0;border-radius:3px;height:4px;margin-top:7px;">
-        <div style="background:{color};border-radius:3px;height:4px;width:{bar_w}%;"></div>
-      </div>
-    </div>""", unsafe_allow_html=True)
+    # Build HTML without nested f-strings to avoid Streamlit rendering issues
+    desc_html = ""
+    if desc:
+        desc_html = f'<div style="font-size:0.71rem;color:#64748b;margin-top:1px;">' + desc + "</div>"
+    cases_html = f'<div style="font-size:0.70rem;color:#94a3b8;margin-top:1px;">' + str(passed) + "/" + str(total) + " cases</div>"
+    pct_html   = f'<span style="font-family:IBM Plex Mono,monospace;font-size:1.05rem;font-weight:700;color:' + color + ';">' + f"{pass_rate:.0f}%" + "</span>"
+    bar_html   = f'<div style="background:#e2e8f0;border-radius:3px;height:4px;margin-top:7px;"><div style="background:' + color + ';border-radius:3px;height:4px;width:' + str(bar_w) + '%;"></div></div>'
+    label_html = f'<span style="font-weight:600;font-size:0.86rem;color:#1c1917;">' + label + "</span>"
+    html = (
+        '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:11px 16px;margin-bottom:6px;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        "<div>" + label_html + desc_html + cases_html + "</div>" +
+        pct_html +
+        "</div>" + bar_html + "</div>"
+    )
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def _module_row(label, passed, cost, elapsed):
